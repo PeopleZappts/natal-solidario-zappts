@@ -3,31 +3,410 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natal Solidário Zappts</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <title>Natal Solidário Zappts 2025</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+        .star {
+            animation: twinkle 3s infinite;
+        }
+    </style>
 </head>
 <body>
-    <div id="root"></div>
-    <script type="module">
-        import NatalSolidario from './app.jsx';
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<NatalSolidario />);
+    <div id="app"></div>
+
+    <script>
+        class NatalSolidario {
+            constructor() {
+                this.cartas = [];
+                this.senhaRelatorio = '@People123';
+                this.carregarCartas();
+                this.renderizar();
+            }
+
+            async carregarCartas() {
+                try {
+                    const resultado = await window.storage.get('natal-cartinhas');
+                    if (resultado && resultado.value) {
+                        this.cartas = JSON.parse(resultado.value);
+                    }
+                } catch (error) {
+                    console.log('Carregando cartas...');
+                }
+            }
+
+            async salvarCartas() {
+                try {
+                    await window.storage.set('natal-cartinhas', JSON.stringify(this.cartas));
+                } catch (error) {
+                    console.error('Erro ao salvar:', error);
+                }
+            }
+
+            validarEmail(email) {
+                return email.endsWith('@zappts.com.br');
+            }
+
+            adicionarCarta(nome, idade, desejo, imagem) {
+                if (!nome.trim() || !idade.trim()) return false;
+                
+                this.cartas.push({
+                    id: Date.now(),
+                    nome: nome.trim(),
+                    idade: idade.trim(),
+                    desejo: desejo.trim() || 'Brinquedo a escolher',
+                    imagem: imagem,
+                    escolhidosPor: []
+                });
+                
+                this.salvarCartas();
+                return true;
+            }
+
+            escolherCarta(cartaId, email) {
+                if (!this.validarEmail(email)) return false;
+                
+                const carta = this.cartas.find(c => c.id === cartaId);
+                if (carta && !carta.escolhidosPor.includes(email)) {
+                    carta.escolhidosPor.push(email);
+                    this.salvarCartas();
+                    return true;
+                }
+                return false;
+            }
+
+            removerEscolha(cartaId, email) {
+                const carta = this.cartas.find(c => c.id === cartaId);
+                if (carta) {
+                    carta.escolhidosPor = carta.escolhidosPor.filter(e => e !== email);
+                    this.salvarCartas();
+                }
+            }
+
+            deletarCarta(cartaId) {
+                this.cartas = this.cartas.filter(c => c.id !== cartaId);
+                this.salvarCartas();
+            }
+
+            baixarRelatorio(senha) {
+                if (senha !== this.senhaRelatorio) return false;
+
+                let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappters que Escolheram,Total de Escolhas\n';
+                
+                this.cartas.forEach((carta, index) => {
+                    const emails = carta.escolhidosPor.join('; ');
+                    const total = carta.escolhidosPor.length;
+                    conteudo += `${index + 1},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
+                });
+
+                const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute('href', url);
+                link.setAttribute('download', `natal-solidario-relatorio-${new Date().toLocaleDateString()}.csv`);
+                link.style.visibility = 'hidden';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                return true;
+            }
+
+            renderizar() {
+                const app = document.getElementById('app');
+                
+                app.innerHTML = `
+                    <div class="min-h-screen p-8" style="background: linear-gradient(135deg, #0c1e3a 0%, #1a2f5a 50%, #0d1929 100%); background-attachment: fixed;">
+                        <!-- Estrelas -->
+                        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                            ${Array.from({length: 100}, (_, i) => `
+                                <div class="star absolute rounded-full bg-white" style="
+                                    width: ${Math.random() * 2}px;
+                                    height: ${Math.random() * 2}px;
+                                    left: ${Math.random() * 100}%;
+                                    top: ${Math.random() * 100}%;
+                                    opacity: 0.7;
+                                "></div>
+                            `).join('')}
+                        </div>
+
+                        <div class="max-w-7xl mx-auto relative z-10">
+                            <!-- Cabeçalho -->
+                            <div class="text-center mb-12">
+                                <div class="text-7xl font-black tracking-wider mb-8" style="color: #0891b2; font-family: Arial, sans-serif;">
+                                    zappts
+                                </div>
+                                <h1 class="text-7xl font-black text-white mb-8 drop-shadow-2xl" style="font-family: Arial, sans-serif; letter-spacing: 0.02em;">
+                                    🎄 Natal Solidário 2025 🎄
+                                </h1>
+                                <p class="text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family: Arial, sans-serif;">
+                                    Escolha uma carinha e realize seu sonho de Natal!
+                                </p>
+                                
+                                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
+                                    <p class="text-white font-bold text-lg">
+                                        ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Botões -->
+                            <div class="flex justify-center gap-4 mb-8 flex-wrap">
+                                <button onclick="app.abrirModalNovaCarta()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    ➕ Adicionar Nova Cartinha
+                                </button>
+                                <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    ℹ️ Saiba Mais
+                                </button>
+                                <button onclick="app.abrirModalSenha()" ${this.cartas.length === 0 ? 'disabled' : ''} class="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    📊 Baixar Relatório
+                                </button>
+                            </div>
+
+                            <!-- Grid de Cartas -->
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
+                                ${this.cartas.length > 0 ? this.cartas.map((c, i) => `
+                                    <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
+                                        <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
+                                            <div class="flex justify-between items-start">
+                                                <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                                                <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                                            </div>
+                                            <div class="text-center flex-1 flex items-center justify-center">
+                                                ${c.imagem ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">` : '<p class="text-5xl">😊</p>'}
+                                            </div>
+                                            <div class="text-center">
+                                                <p class="font-black text-blue-900 text-sm">${c.nome}</p>
+                                                <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                                                <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
+                                            </div>
+                                            <div class="text-center">
+                                                <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
+                                                    👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('') : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'}
+                            </div>
+
+                            <!-- Resumo de Escolhas -->
+                            ${this.cartas.some(c => c.escolhidosPor.length > 0) ? `
+                                <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
+                                    <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        ${this.cartas.filter(c => c.escolhidosPor.length > 0).map((c, i) => `
+                                            <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
+                                                <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
+                                                <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
+                                                <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
+                                                <div class="space-y-1">
+                                                    <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
+                                                    ${c.escolhidosPor.map(email => `
+                                                        <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
+                                                            <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
+                                                            <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Modais -->
+                        <div id="modais"></div>
+                    </div>
+                `;
+
+                window.app = this;
+            }
+
+            abrirModalNovaCarta() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
+                            <div class="space-y-4 mb-6">
+                                <input type="text" id="nomeCarta" placeholder="Nome da carinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarNovaCarta()" class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Adicionar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            confirmarNovaCarta() {
+                const nome = document.getElementById('nomeCarta').value;
+                const idade = document.getElementById('idadeCarta').value;
+                const desejo = document.getElementById('desejoCarta').value;
+                const imagemInput = document.getElementById('imagemCarta');
+                
+                if (!nome.trim() || !idade.trim()) {
+                    alert('Preencha nome e idade!');
+                    return;
+                }
+
+                let imagem = null;
+                if (imagemInput.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        imagem = e.target.result;
+                        this.adicionarCarta(nome, idade, desejo, imagem);
+                        document.getElementById('modais').innerHTML = '';
+                        this.renderizar();
+                    };
+                    reader.readAsDataURL(imagemInput.files[0]);
+                } else {
+                    this.adicionarCarta(nome, idade, desejo, null);
+                    document.getElementById('modais').innerHTML = '';
+                    this.renderizar();
+                }
+            }
+
+            abrirModalEscolha(cartaId) {
+                const carta = this.cartas.find(c => c.id === cartaId);
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
+                            <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
+                                ${carta.imagem ? `<img src="${carta.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">` : '<p class="text-5xl mb-2">😊</p>'}
+                                <p class="font-black text-lg text-blue-900">${carta.nome}</p>
+                                <p class="text-blue-800 font-bold">${carta.idade}</p>
+                                <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${carta.desejo}</p>
+                            </div>
+                            <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Email deve terminar com @zappts.com.br</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            confirmarEscolha(cartaId) {
+                const email = document.getElementById('emailEscolha').value;
+                const erroDiv = document.getElementById('erroEmail');
+                
+                if (!this.validarEmail(email)) {
+                    erroDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                if (this.escolherCarta(cartaId, email)) {
+                    document.getElementById('modais').innerHTML = '';
+                    this.renderizar();
+                }
+            }
+
+            abrirModalInfo() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl border-2 border-cyan-400 max-h-96 overflow-y-auto">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">📋 Regras e Prazos</h2>
+                            <div class="space-y-4 text-gray-800">
+                                <div>
+                                    <h3 class="font-black text-blue-700 mb-2 text-lg">📅 Cronograma:</h3>
+                                    <ul class="space-y-1 text-sm ml-4 font-semibold">
+                                        <li>✓ <strong>Abertura das inscrições:</strong> 26/11/2025</li>
+                                        <li>✓ <strong>Prazo final para inscrição:</strong> 05/12/2025</li>
+                                        <li>✓ <strong>Distribuição dos vouchers:</strong> 08/12/2025</li>
+                                        <li>✓ <strong>Entrega dos brinquedos:</strong> 20/12/2025</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-blue-700 mb-2 text-lg">🎁 Como Funciona:</h3>
+                                    <ul class="space-y-1 text-sm ml-4 font-semibold">
+                                        <li>• Cada Zappter recebe R$ 50 no Caju</li>
+                                        <li>• Participa individual ou em grupo</li>
+                                        <li>• Acumula vouchers para brinquedos maiores</li>
+                                        <li>• Escolhe a carinha e compra o brinquedo</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Entendi!</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            abrirModalSenha() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Acesso ao Relatório</h2>
+                            <p class="text-gray-700 mb-6 font-semibold">Digite a senha:</p>
+                            <input type="password" id="senhaInput" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroSenha" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarSenha()" class="flex-1 px-4 py-2 bg-green-600 text-white font-bold rounded-lg text-lg">Baixar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            confirmarSenha() {
+                const senha = document.getElementById('senhaInput').value;
+                const erroDiv = document.getElementById('erroSenha');
+                
+                if (this.baixarRelatorio(senha)) {
+                    document.getElementById('modais').innerHTML = '';
+                } else {
+                    erroDiv.classList.remove('hidden');
+                }
+            }
+
+            deletarCarta(cartaId) {
+                if (confirm('Tem certeza?')) {
+                    this.deletarCarta(cartaId);
+                    this.renderizar();
+                }
+            }
+
+            removerEscolha(cartaId, email) {
+                this.removerEscolha(cartaId, email);
+                this.renderizar();
+            }
+
+            ampliarImagem(src) {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50">
+                        <div class="relative">
+                            <button onclick="document.getElementById('modais').innerHTML = ''" class="absolute -top-12 right-0 text-white hover:text-gray-300 text-3xl">✕</button>
+                            <img src="${src}" class="rounded-xl shadow-2xl max-w-full max-h-96 object-contain">
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Inicializa quando a página carrega
+        window.addEventListener('load', () => {
+            new NatalSolidario();
+        });
     </script>
 </body>
 </html>
-```
-
-**Passo 4: Conectar ao Vercel**
-1. Vai em **vercel.com**
-2. Faz login com a conta do GitHub
-3. Clica em **"New Project"**
-4. Procura pelo repositório `natal-solidario-zappts`
-5. Clica em **"Import"**
-6. Deixa tudo como padrão
-7. Clica em **"Deploy"**
-
-**Pronto!** 🚀 Em segundos você ganha um link tipo:
-```
-https://natal-solidario-zappts.vercel.app
