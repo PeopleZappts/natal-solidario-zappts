@@ -1,0 +1,5 @@
+{
+  "buildCommand": "echo 'build complete'",
+  "outputDirectory": ".",
+  "installCommand": "npm install"
+}
