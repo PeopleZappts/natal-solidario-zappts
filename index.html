@@ -1,576 +1,416 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Natal Solidário Zappts 2025</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
-        .star {
-            animation: twinkle 3s infinite;
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Natal Solidário Zappts 2025</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+@keyframes twinkle { 0%,100%{opacity:.3;} 50%{opacity:1;} }
+.star { animation: twinkle 3s infinite; }
+</style>
 </head>
+
 <body>
-    <div id="app"></div>
+<div id="app"></div>
 
-    <script>
-
+<script>
 class NatalSolidario {
 
-    supabaseUrl = "https://qykyaafhqaatlefozrvq.supabase.co/data/v1";
+    supabaseUrl = "https://qykyaafhqaatlefozrvq.supabase.co";
     supabaseKey = "sb_publishable_R-N-XCpFVnUlf-5Z16VLjg_xaxCeNGp";
+    bucket = "cartinhas";
 
-    async request(path, options = {}) {
-        options.headers = {
-            "apikey": this.supabaseKey,
-            "Authorization": `Bearer ${this.supabaseKey}`,
-            "Content-Type": "application/json",
-            ...options.headers
-        };
-
-        const res = await fetch(`${this.supabaseUrl}${path}`, options);
-        if (!res.ok) {
-            console.error("ERRO SUPABASE:", await res.text());
-            throw new Error("Falha ao conectar ao Supabase");
-        }
-        return res.json();
+    api(path, options = {}) {
+        return fetch(this.supabaseUrl + path, {
+            ...options,
+            headers: {
+                "apikey": this.supabaseKey,
+                "Authorization": "Bearer " + this.supabaseKey,
+                ...(options.headers || {})
+            }
+        }).then(async res => {
+            if (!res.ok) throw new Error(await res.text());
+            return res.json();
+        });
     }
 
-    constructor() {
+    constructor(){
         this.cartas = [];
-        this.senhaRelatorio = '@People123';
-        this.carregarCartas();
+        this.senhaRelatorio = "@People123";
+        this.load();
     }
 
-    /* ============================
-        CARREGAR CARTAS DO BANCO
-    ============================ */
-    async carregarCartas() {
+    async load(){
         try {
-            const dados = await this.request(`/tables/cartas?select=*`);
-            this.cartas = dados.map(row => ({
-                id: row.id,
-                nome: row.nome,
-                idade: row.idade,
-                desejo: row.desejo,
-                imagem: row.imagem,
-                escolhidosPor: row.escolhidos_por || []
+            const data = await this.api("/rest/v1/cartas?select=*");
+            this.cartas = data.map(c => ({
+                id: c.id,
+                nome: c.nome,
+                idade: c.idade,
+                desejo: c.desejo,
+                imagem: c.imagem,
+                escolhidosPor: c.escolhidos_por || []
             }));
-        } catch (err) {
-            console.error("Erro ao carregar cartas:", err);
-            this.cartas = [];
+        } catch(e){
+            console.error(e);
         }
-
-        this.renderizar();
+        this.render();
     }
 
-    /* ============================
-        ADICIONAR NOVA CARTA
-    ============================ */
-    async adicionarCarta(nome, idade, desejo, imagem) {
+    async uploadImagem(file){
+        const nome = Date.now() + "_" + file.name;
+        await fetch(`${this.supabaseUrl}/storage/v1/object/${this.bucket}/${nome}`, {
+            method: "POST",
+            headers: {
+                "apikey": this.supabaseKey,
+                "Authorization": "Bearer " + this.supabaseKey,
+                "Content-Type": file.type
+            },
+            body: file
+        });
 
-        const novaCarta = {
-            nome: nome.trim(),
-            idade: idade.trim(),
-            desejo: desejo.trim() || "Brinquedo a escolher",
-            imagem: imagem,
+        return `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${nome}`;
+    }
+
+    async adicionarCarta(nome, idade, desejo, file){
+        let imagemUrl = null;
+        if (file) imagemUrl = await this.uploadImagem(file);
+
+        const body = {
+            nome, idade,
+            desejo: desejo || "Brinquedo a escolher",
+            imagem: imagemUrl,
             escolhidos_por: []
         };
 
-        try {
-            const [salva] = await this.request(`/tables/cartas`, {
-                method: "POST",
-                body: JSON.stringify(novaCarta)
-            });
-
-            this.cartas.push({
-                id: salva.id,
-                nome: salva.nome,
-                idade: salva.idade,
-                desejo: salva.desejo,
-                imagem: salva.imagem,
-                escolhidosPor: salva.escolhidos_por
-            });
-
-            this.renderizar();
-            return true;
-
-        } catch (err) {
-            console.error("Erro ao adicionar:", err);
-            alert("Erro ao adicionar cartinha!");
-            return false;
-        }
-    }
-
-    validarEmail(email) {
-        return email.endsWith('@zappts.com.br');
-    }
-
-    /* ============================
-        ESCOLHER CARTA
-    ============================ */
-    async escolherCarta(cartaId, email) {
-        const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return false;
-
-        if (carta.escolhidosPor.includes(email)) return true;
-
-        const novaLista = [...carta.escolhidosPor, email];
-
-        try {
-            const [atualizada] = await this.request(`/tables/cartas?id=eq.${cartaId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ escolhidos_por: novaLista })
-            });
-
-            carta.escolhidosPor = atualizada.escolhidos_por;
-            this.renderizar();
-            return true;
-
-        } catch (err) {
-            console.error("Erro ao escolher:", err);
-            return false;
-        }
-    }
-
-    /* ============================
-        REMOVER ESCOLHA
-    ============================ */
-    async removerEscolha(cartaId, email) {
-        const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return;
-
-        const novaLista = carta.escolhidosPor.filter(e => e !== email);
-
-        try {
-            const [atualizada] = await this.request(`/tables/cartas?id=eq.${cartaId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ escolhidos_por: novaLista })
-            });
-
-            carta.escolhidosPor = atualizada.escolhidos_por;
-            this.renderizar();
-
-        } catch (err) {
-            console.error("Erro ao remover escolha:", err);
-        }
-    }
-
-    /* ============================
-        DELETAR CARTA
-    ============================ */
-    deletarCarta(cartaId) {
-        this.cartaIdParaDeletar = cartaId;
-        this.abrirModalSenhaDelete();
-    }
-
-    async confirmarDelete() {
-        const senha = document.getElementById('senhaDelete').value;
-        const erroDiv = document.getElementById('erroSenhaDelete');
-
-        if (senha !== this.senhaRelatorio) {
-            erroDiv.classList.remove("hidden");
-            return;
-        }
-
-        try {
-            await this.request(`/tables/cartas?id=eq.${this.cartaIdParaDeletar}`, {
-                method: "DELETE"
-            });
-
-            this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
-            document.getElementById('modais').innerHTML = '';
-            this.renderizar();
-
-        } catch (err) {
-            console.error("Erro ao excluir:", err);
-            alert("Falha ao excluir cartinha");
-        }
-    }
-
-    /* ============================
-        RELATÓRIO CSV
-    ============================ */
-    baixarRelatorio(senha) {
-        if (senha !== this.senhaRelatorio) return false;
-
-        let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappters que escolheram,Total\n';
-
-        this.cartas.forEach((c, i) => {
-            const emails = c.escolhidosPor.join('; ');
-            conteudo += `${i + 1},"${c.nome}",${c.idade},"${c.desejo}","${emails}",${c.escolhidosPor.length}\n`;
+        const saved = await this.api("/rest/v1/cartas", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(body)
         });
 
-        const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        this.cartas.push({
+            id: saved[0].id,
+            ...body,
+            escolhidosPor: []
+        });
 
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `natal-solidario-${new Date().toLocaleDateString()}.csv`;
-        link.click();
+        this.render();
+    }
 
+    validarEmail(email){
+        return email.endsWith("@zappts.com.br");
+    }
+
+    async escolherCarta(id, email){
+        const c = this.cartas.find(x=>x.id===id);
+        if (!c) return;
+
+        if (!c.escolhidosPor.includes(email))
+            c.escolhidosPor.push(email);
+
+        await this.api(`/rest/v1/cartas?id=eq.${id}`, {
+            method: "PATCH",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({escolhidos_por: c.escolhidosPor})
+        });
+
+        this.render();
+    }
+
+    async removerEscolha(id, email){
+        const c = this.cartas.find(x=>x.id===id);
+        if (!c) return;
+
+        c.escolhidosPor = c.escolhidosPor.filter(e=>e!==email);
+
+        await this.api(`/rest/v1/cartas?id=eq.${id}`, {
+            method: "PATCH",
+            headers: {"Content-Type":"application/json"},
+            body: JSON.stringify({escolhidos_por: c.escolhidosPor})
+        });
+
+        this.render();
+    }
+
+    async deleteCarta(id){
+        await this.api(`/rest/v1/cartas?id=eq.${id}`, {method:"DELETE"});
+        this.cartas = this.cartas.filter(c=>c.id!==id);
+        this.render();
+    }
+
+    baixarRelatorio(s){
+        if (s !== this.senhaRelatorio) return false;
+        let csv = "Nº,Nome,Idade,Desejo,Emails,Total\n";
+        this.cartas.forEach((c,i)=>{
+            csv += `${i+1},"${c.nome}",${c.idade},"${c.desejo}","${c.escolhidosPor.join("; ")}",${c.escolhidosPor.length}\n`;
+        });
+        const blob = new Blob([csv],{type:"text/csv"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "relatorio.csv";
+        a.click();
         return true;
     }
 
-    /* ============================
-        RENDERIZAÇÃO COMPLETA
-    ============================ */
-    renderizar() {
-        const app = document.getElementById('app');
-
+    /* ------------------------
+       RENDERIZAÇÃO COMPLETA
+    -------------------------*/
+    render(){
+        const app = document.getElementById("app");
         app.innerHTML = `
+        <div class="min-h-screen p-8" style="background:linear-gradient(135deg,#0c1e3a,#1a2f5a,#0d1929);">
 
-        <div class="min-h-screen p-8" style="background: linear-gradient(135deg, #0c1e3a 0%, #1a2f5a 50%, #0d1929 100%); background-attachment: fixed;">
-
-            <div class="absolute inset-0 pointer-events-none overflow-hidden">
-                ${Array.from({length: 100}, () => `
-                    <div class="star absolute rounded-full bg-white"
-                    style="width:${Math.random()*2}px;height:${Math.random()*2}px;left:${Math.random()*100}%;top:${Math.random()*100}%"></div>
-                `).join('')}
+            <div class="absolute inset-0 pointer-events-none">
+                ${Array.from({length:100}).map(()=>{
+                    return `<div class="star absolute bg-white rounded-full"
+                        style="width:${Math.random()*2}px;height:${Math.random()*2}px;left:${Math.random()*100}%;top:${Math.random()*100}%"></div>`;
+                }).join("")}
             </div>
 
             <div class="max-w-7xl mx-auto relative z-10">
 
                 <div class="text-center mb-12">
-                    <div class="text-7xl font-black tracking-wider mb-8" style="color:#0891b2;font-family:Arial;">
-                        zappts
-                    </div>
+                    <div class="text-7xl font-black mb-4" style="color:#0891b2">zappts</div>
+                    <h1 class="text-6xl font-black text-white mb-4">🎄 Natal Solidário 2025 🎄</h1>
+                    <p class="text-2xl text-white font-bold mb-6">Escolha uma cartinha e realize um sonho!</p>
 
-                    <h1 class="text-7xl font-black text-white mb-8 drop-shadow-2xl" style="font-family:Arial;">
-                        🎄 Natal Solidário 2025 🎄
-                    </h1>
-
-                    <p class="text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family:Arial;">
-                        Escolha uma cartinha e realize seu sonho de Natal!
-                    </p>
-
-                    <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
-                        <p class="text-white font-bold text-lg">
-                            ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s,c)=>s+c.escolhidosPor.length,0)} escolhas realizadas
+                    <div class="inline-block bg-cyan-500 bg-opacity-30 px-6 py-3 rounded-xl border-2 border-cyan-400">
+                        <p class="text-white font-bold">
+                        ${this.cartas.length} cartinhas •
+                        ${this.cartas.reduce((t,c)=>t+c.escolhidosPor.length,0)} escolhas
                         </p>
                     </div>
                 </div>
 
-                <div class="flex justify-center gap-4 mb-8 flex-wrap">
-                    <button onclick="app.abrirModalNovaCarta()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl">
-                        ➕ Adicionar Nova Cartinha
+                <div class="flex justify-center gap-4 mb-8">
+                    <button onclick="app.modalNova()" class="bg-cyan-400 text-blue-900 font-bold py-3 px-6 rounded-xl">
+                        ➕ Adicionar Cartinha
                     </button>
 
-                    <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl">
-                        ℹ️ Saiba Mais
+                    <button onclick="app.modalInfo()" class="bg-white text-blue-700 font-bold py-3 px-6 rounded-xl">
+                        ℹ️ Informações
                     </button>
 
-                    <button onclick="app.abrirModalSenha()"
-                    ${this.cartas.length===0?'disabled':''}
-                    class="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl">
-                        📊 Baixar Relatório
+                    <button onclick="app.modalSenha()" class="bg-green-500 text-white font-bold py-3 px-6 rounded-xl">
+                        📊 Relatório
                     </button>
                 </div>
 
-                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
-                    ${this.cartas.length>0 ? this.cartas.map((c,i)=>`
-                        <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                            <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer"
-                                 onclick="app.abrirModalEscolha(${c.id})">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    ${this.cartas.map((c,i)=>`
+                        <div class="bg-emerald-300 rounded-xl p-4 cursor-pointer shadow-lg hover:scale-105 transition"
+                             onclick="app.modalEscolha(${c.id})">
 
-                                <div class="flex justify-between">
-                                    <span class="bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i+1}</span>
-                                    <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})"
-                                        class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
-                                </div>
-
-                                <div class="text-center flex-1 flex items-center justify-center">
-                                    ${c.imagem
-                                        ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer"
-                                                onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
-                                        : '<p class="text-5xl">😊</p>'}
-                                </div>
-
-                                <div class="text-center">
-                                    <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                                    <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
-                                    <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
-                                </div>
-
-                                <div class="text-center">
-                                    <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
-                                        👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length===1?'escolheu':'escolheram'}
-                                    </p>
-                                </div>
-
+                            <div class="flex justify-between mb-2">
+                                <span class="bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-bold">#${i+1}</span>
+                                <button onclick="event.stopPropagation(); app.modalDelete(${c.id})" class="bg-white px-2 rounded">✕</button>
                             </div>
+
+                            <div class="text-center my-2">
+                                ${c.imagem ? 
+                                    `<img src="${c.imagem}" class="w-20 h-20 rounded mx-auto">`
+                                    : '<p class="text-5xl">😊</p>'}
+                            </div>
+
+                            <p class="text-blue-900 font-bold text-sm text-center">${c.nome}</p>
+                            <p class="text-blue-800 text-xs text-center">${c.idade} anos</p>
+                            <p class="text-blue-700 text-xs italic text-center">${c.desejo}</p>
+
+                            <p class="text-xs bg-blue-700 text-white text-center py-1 rounded mt-2 font-bold">
+                                👥 ${c.escolhidosPor.length}
+                            </p>
+
                         </div>
-                    `).join('') : `
-                        <div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>
-                    `}
+                    `).join("")}
                 </div>
 
-                ${this.cartas.some(c=>c.escolhidosPor.length>0) ? `
-                    <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
-                        <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            ${this.cartas.filter(c=>c.escolhidosPor.length>0).map(c=>`
-                                <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
-                                    <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c)+1}</p>
-                                    <p class="font-bold text-gray-800">${c.nome}, ${c.idade} anos</p>
-                                    <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
-
-                                    <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
-
-                                    ${c.escolhidosPor.map(email=>`
-                                        <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
-                                            <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
-                                            <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            `).join('')}
-                        </div>
-
-                    </div>
-                ` : ''}
+                <div id="modais"></div>
 
             </div>
-
-            <div id="modais"></div>
-
         </div>
         `;
-
         window.app = this;
     }
 
-    /* ============================
-        MODAIS — COMPLETO
-    ============================ */
+    /* ------------------------
+        MODAIS COMPLETOS
+    -------------------------*/
 
-    abrirModalNovaCarta() {
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+    modalNova(){
+        document.getElementById("modais").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full">
 
-                <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
+                <h2 class="text-2xl font-bold mb-4">Adicionar Cartinha</h2>
 
-                <div class="space-y-4 mb-6">
-                    <input id="nomeCarta" placeholder="Nome" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
-                    <input id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
-                    <input id="desejoCarta" placeholder="Desejo (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
-                    <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
-                </div>
+                <input id="n1" placeholder="Nome" class="w-full border p-2 mb-2 rounded" />
+                <input id="n2" placeholder="Idade" class="w-full border p-2 mb-2 rounded" />
+                <input id="n3" placeholder="Desejo (opcional)" class="w-full border p-2 mb-2 rounded" />
+                <input id="n4" type="file" accept="image/*" class="w-full border p-2 mb-4 rounded" />
 
-                <div class="flex gap-3">
+                <div class="flex gap-4">
                     <button onclick="document.getElementById('modais').innerHTML=''"
-                        class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg">Cancelar</button>
+                        class="flex-1 bg-gray-400 text-white p-2 rounded">Cancelar</button>
 
-                    <button onclick="app.confirmarNovaCarta()"
-                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg">Adicionar</button>
+                    <button onclick="app.novaConfirmar()"
+                        class="flex-1 bg-blue-600 text-white p-2 rounded">Adicionar</button>
                 </div>
 
             </div>
         </div>`;
     }
 
-    confirmarNovaCarta() {
-        const nome = document.getElementById('nomeCarta').value;
-        const idade = document.getElementById('idadeCarta').value;
-        const desejo = document.getElementById('desejoCarta').value;
-        const imagemInput = document.getElementById('imagemCarta');
+    async novaConfirmar(){
+        const nome = n1.value.trim();
+        const idade = n2.value.trim();
+        const desejo = n3.value.trim();
+        const file = n4.files[0] || null;
 
-        if (!nome.trim() || !idade.trim()) {
-            alert("Preencha nome e idade!");
+        if (!nome || !idade){
+            alert("Preencha nome e idade.");
             return;
         }
 
-        if (imagemInput.files[0]) {
-            const reader = new FileReader();
-            reader.onload = e => {
-                this.adicionarCarta(nome, idade, desejo, e.target.result);
-                document.getElementById('modais').innerHTML = '';
-            };
-            reader.readAsDataURL(imagemInput.files[0]);
-        } else {
-            this.adicionarCarta(nome, idade, desejo, null);
-            document.getElementById('modais').innerHTML = '';
-        }
+        await this.adicionarCarta(nome, idade, desejo, file);
+        document.getElementById("modais").innerHTML = "";
     }
 
-    abrirModalEscolha(cartaId) {
-        const c = this.cartas.find(x=>x.id===cartaId);
+    modalEscolha(id){
+        const c = this.cartas.find(x=>x.id===id);
+        document.getElementById("modais").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full">
 
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                <h2 class="text-2xl font-bold mb-4">Escolher Cartinha</h2>
 
-                <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher Cartinha 🎁</h2>
-
-                <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
-                    ${c.imagem
-                        ? `<img src="${c.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">`
-                        : '<p class="text-5xl mb-2">😊</p>'}
-
-                    <p class="font-black text-lg text-blue-900">${c.nome}</p>
-                    <p class="text-blue-800 font-bold">${c.idade} anos</p>
-                    <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${c.desejo}</p>
+                <div class="text-center mb-4">
+                    ${c.imagem ? `<img src="${c.imagem}" class="w-24 h-24 mx-auto rounded mb-2"/>`
+                                : `<p class="text-5xl mb-2">😊</p>`}
+                    <p class="font-bold text-lg">${c.nome}</p>
+                    <p>${c.idade} anos</p>
+                    <p class="italic text-sm">${c.desejo}</p>
                 </div>
 
-                <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br"
-                    class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg mb-4">
+                <input id="emailEscolha" placeholder="seu.email@zappts.com.br"
+                    class="w-full border p-2 mb-2 rounded"/>
 
-                <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">
-                    ⚠️ Email deve terminar com @zappts.com.br
-                </div>
+                <p id="erroEmail" class="hidden text-red-600 text-sm mb-2">Email inválido</p>
 
-                <div class="flex gap-3">
+                <div class="flex gap-4">
                     <button onclick="document.getElementById('modais').innerHTML=''"
-                        class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg">Cancelar</button>
+                        class="flex-1 bg-gray-400 text-white p-2 rounded">Cancelar</button>
 
-                    <button onclick="app.confirmarEscolha(${cartaId})"
-                        class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 rounded-lg font-bold">Confirmar</button>
+                    <button onclick="app.escolhaConfirmar(${id})"
+                        class="flex-1 bg-cyan-400 text-blue-900 p-2 rounded font-bold">Confirmar</button>
                 </div>
 
             </div>
         </div>`;
     }
 
-    confirmarEscolha(cartaId) {
-        const email = document.getElementById('emailEscolha').value;
-        const erro = document.getElementById('erroEmail');
-
-        if (!this.validarEmail(email)) {
-            erro.classList.remove("hidden");
+    async escolhaConfirmar(id){
+        const email = emailEscolha.value.trim();
+        if (!this.validarEmail(email)){
+            erroEmail.classList.remove("hidden");
             return;
         }
-
-        this.escolherCarta(cartaId, email);
-        document.getElementById('modais').innerHTML = '';
+        await this.escolherCarta(id, email);
+        document.getElementById("modais").innerHTML = "";
     }
 
-    abrirModalInfo() {
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl border-2 border-cyan-400 max-h-96 overflow-y-auto">
-                <h2 class="text-2xl font-black text-blue-700 mb-4">📋 Regras e Prazos</h2>
+    modalDelete(id){
+        document.getElementById("modais").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full">
 
-                <div class="space-y-4 text-gray-800">
+                <h2 class="text-xl font-bold mb-4">Excluir Cartinha</h2>
 
-                    <div>
-                        <h3 class="font-black text-blue-700 mb-2 text-lg">📅 Cronograma:</h3>
-                        <ul class="space-y-1 text-sm ml-4 font-semibold">
-                            <li>✓ <strong>Abertura:</strong> 26/11/2025</li>
-                            <li>✓ <strong>Fim das inscrições:</strong> 05/12/2025</li>
-                            <li>✓ <strong>Distribuição dos vouchers:</strong> 08/12/2025</li>
-                            <li>✓ <strong>Entrega dos brinquedos:</strong> 20/12/2025</li>
-                        </ul>
-                    </div>
+                <input id="senhaDelete" type="password" placeholder="Senha"
+                    class="w-full border p-2 mb-2 rounded"/>
 
-                    <div>
-                        <h3 class="font-black text-blue-700 mb-2 text-lg">🎁 Como Funciona:</h3>
-                        <ul class="space-y-1 text-sm ml-4 font-semibold">
-                            <li>• Cada Zappter recebe R$ 50 no Caju</li>
-                            <li>• Pode participar individual ou em grupo</li>
-                            <li>• Pode juntar vouchers para brinquedos maiores</li>
-                            <li>• Escolhe a cartinha e compra o presente</li>
-                        </ul>
-                    </div>
+                <p id="erroSenhaDelete" class="hidden text-red-600 text-sm mb-2">Senha incorreta</p>
 
-                </div>
-
-                <button onclick="document.getElementById('modais').innerHTML=''"
-                    class="w-full mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-lg">
-                    Entendi!
-                </button>
-
-            </div>
-        </div>`;
-    }
-
-    abrirModalSenha() {
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
-
-                <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Acesso ao Relatório</h2>
-
-                <p class="text-gray-700 mb-6 font-semibold">Digite a senha:</p>
-
-                <input id="senhaInput" type="password" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg mb-4">
-
-                <div id="erroSenha" class="text-red-600 text-sm font-bold mb-4 hidden">
-                    ⚠️ Senha incorreta!
-                </div>
-
-                <div class="flex gap-3">
+                <div class="flex gap-4">
                     <button onclick="document.getElementById('modais').innerHTML=''"
-                        class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg">Cancelar</button>
+                        class="flex-1 bg-gray-400 text-white p-2 rounded">Cancelar</button>
 
-                    <button onclick="app.confirmarSenha()"
-                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg">Baixar</button>
+                    <button onclick="app.deleteConfirmar(${id})"
+                        class="flex-1 bg-red-600 text-white p-2 rounded">Excluir</button>
                 </div>
 
             </div>
         </div>`;
     }
 
-    confirmarSenha() {
-        const senha = document.getElementById('senhaInput').value;
-        const erro = document.getElementById('erroSenha');
-
-        if (this.baixarRelatorio(senha)) {
-            document.getElementById('modais').innerHTML = '';
-        } else {
-            erro.classList.remove("hidden");
+    async deleteConfirmar(id){
+        const s = senhaDelete.value;
+        if (s !== this.senhaRelatorio){
+            erroSenhaDelete.classList.remove("hidden");
+            return;
         }
+        await this.deleteCarta(id);
+        document.getElementById("modais").innerHTML = "";
     }
 
-    abrirModalSenhaDelete() {
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+    modalSenha(){
+        document.getElementById("modais").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-xl max-w-md w-full">
 
-                <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Excluir Cartinha</h2>
+                <h2 class="text-xl font-bold mb-4">Relatório</h2>
 
-                <p class="text-gray-700 mb-6 font-semibold">Digite a senha:</p>
+                <input id="senhaInput" type="password" placeholder="Senha"
+                    class="w-full border p-2 mb-2 rounded"/>
 
-                <input id="senhaDelete" type="password" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg mb-4">
+                <p id="erroSenha" class="hidden text-red-600 text-sm mb-2">Senha incorreta</p>
 
-                <div id="erroSenhaDelete" class="text-red-600 text-sm font-bold mb-4 hidden">
-                    ⚠️ Senha incorreta!
-                </div>
-
-                <div class="flex gap-3">
+                <div class="flex gap-4">
                     <button onclick="document.getElementById('modais').innerHTML=''"
-                        class="flex-1 px-4 py-2 bg-gray-400 text-white rounded-lg">Cancelar</button>
+                        class="flex-1 bg-gray-400 text-white p-2 rounded">Cancelar</button>
 
-                    <button onclick="app.confirmarDelete()"
-                        class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg">Excluir</button>
+                    <button onclick="app.relatorioConfirmar()"
+                        class="flex-1 bg-green-600 text-white p-2 rounded">Baixar</button>
                 </div>
 
             </div>
         </div>`;
     }
 
-    ampliarImagem(src) {
-        document.getElementById('modais').innerHTML = `
-        <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50">
-            <div class="relative">
+    relatorioConfirmar(){
+        const s = senhaInput.value;
+        if (!this.baixarRelatorio(s)){
+            erroSenha.classList.remove("hidden");
+            return;
+        }
+        document.getElementById("modais").innerHTML = "";
+    }
+
+    modalInfo(){
+        document.getElementById("modais").innerHTML = `
+        <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4">
+            <div class="bg-white p-6 rounded-xl max-w-lg w-full max-h-[90vh] overflow-auto">
+
+                <h2 class="text-xl font-bold mb-4">Informações</h2>
+
+                <p class="mb-4">• Cada Zappter recebe R$50 no Caju.</p>
+                <p class="mb-4">• Pode participar individualmente ou em grupo.</p>
+                <p class="mb-4">• Pode juntar vouchers.</p>
+                <p class="mb-4">• Escolha a cartinha e compre o presente.</p>
+
                 <button onclick="document.getElementById('modais').innerHTML=''"
-                    class="absolute -top-12 right-0 text-white text-3xl">✕</button>
-                <img src="${src}" class="rounded-xl shadow-2xl max-w-full max-h-96 object-contain">
+                    class="w-full bg-blue-600 text-white p-2 rounded">Fechar</button>
+
             </div>
         </div>`;
     }
 
 }
 
-window.addEventListener("load", () => new NatalSolidario());
-
-    </script>
+window.addEventListener("load",()=>new NatalSolidario());
+</script>
 
 </body>
 </html>
