@@ -149,27 +149,29 @@
                 }
             }
 
-            // ---------- ESCOLHER CARTA ----------
+            // ---------- ESCOLHER CARTA (AJUSTADO) ----------
             async escolherCarta(cartaId, email) {
                 const carta = this.cartas.find(c => c.id === cartaId);
                 if (!carta) return false;
 
+                // se já estiver nessa cartinha, só ignora
                 if (carta.escolhidosPor.includes(email)) return true;
 
                 const novaLista = [...carta.escolhidosPor, email];
 
                 try {
-                    const dados = await this.db(`/cartas?id=eq.${cartaId}&select=*`, {
+                    await this.db(`/cartas?id=eq.${cartaId}`, {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',
-                            Prefer: 'return=representation'
+                            // não precisamos de retorno, 204 é ok
+                            Prefer: 'return=minimal'
                         },
                         body: JSON.stringify({ escolhidos_por: novaLista })
                     });
 
-                    const atualizada = dados[0];
-                    carta.escolhidosPor = atualizada.escolhidos_por || [];
+                    // atualiza só localmente
+                    carta.escolhidosPor = novaLista;
                     this.renderizar();
                     return true;
                 } catch (error) {
@@ -179,7 +181,7 @@
                 }
             }
 
-            // ---------- REMOVER ESCOLHA ----------
+            // ---------- REMOVER ESCOLHA (AJUSTADO) ----------
             async removerEscolha(cartaId, email) {
                 const carta = this.cartas.find(c => c.id === cartaId);
                 if (!carta) return;
@@ -187,17 +189,16 @@
                 const novaLista = carta.escolhidosPor.filter(e => e !== email);
 
                 try {
-                    const dados = await this.db(`/cartas?id=eq.${cartaId}&select=*`, {
+                    await this.db(`/cartas?id=eq.${cartaId}`, {
                         method: 'PATCH',
                         headers: {
                             'Content-Type': 'application/json',
-                            Prefer: 'return=representation'
+                            Prefer: 'return=minimal'
                         },
                         body: JSON.stringify({ escolhidos_por: novaLista })
                     });
 
-                    const atualizada = dados[0];
-                    carta.escolhidosPor = atualizada.escolhidos_por || [];
+                    carta.escolhidosPor = novaLista;
                     this.renderizar();
                 } catch (error) {
                     console.error('Erro ao remover escolha:', error);
@@ -548,4 +549,5 @@
     </script>
 </body>
 </html>
+
 
