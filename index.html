@@ -1,529 +1,551 @@
-<script>
-class NatalSolidario {
-    constructor() {
-        this.cartas = [];
-        this.senhaRelatorio = '@People123';
-
-        // CONFIG DO SUPABASE
-        this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
-        this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
-        this.bucket = 'cartinhas';
-
-        this.carregarCartas();
-    }
-
-    // --------- HELPERS SUPABASE (REST) ---------
-    async db(path, options = {}) {
-        const res = await fetch(`${this.supabaseUrl}/rest/v1${path}`, {
-            ...options,
-            headers: {
-                apikey: this.supabaseKey,
-                Authorization: `Bearer ${this.supabaseKey}`,
-                ...(options.headers || {})
-            }
-        });
-
-        if (!res.ok) {
-            const txt = await res.text();
-            console.error('Erro Supabase DB:', txt);
-            throw new Error(txt);
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Natal Solidário Zappts 2025</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
         }
-
-        if (res.status === 204) return null;
-        return res.json();
-    }
-
-    async uploadImagem(file) {
-        const nomeArquivo = `${Date.now()}-${file.name}`;
-        const urlUpload = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
-
-        const res = await fetch(urlUpload, {
-            method: 'POST',
-            headers: {
-                apikey: this.supabaseKey,
-                Authorization: `Bearer ${this.supabaseKey}`,
-                'Content-Type': file.type
-            },
-            body: file
-        });
-
-        if (!res.ok) {
-            const txt = await res.text();
-            console.error('Erro upload imagem:', txt);
-            throw new Error(txt);
+        .star {
+            animation: twinkle 3s infinite;
         }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
 
-        const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
-        return publicUrl;
-    }
+    <script>
+        class NatalSolidario {
+            constructor() {
+                this.cartas = [];
+                this.senhaRelatorio = '@People123';
 
-    // --------- CARREGAR CARTAS DO BANCO ---------
-    async carregarCartas() {
-        try {
-            const dados = await this.db('/cartas?select=*');
+                // CONFIG SUPABASE
+                this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
+                this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
+                this.bucket = 'cartinhas';
 
-            this.cartas = (dados || []).map(row => ({
-                id: row.id,
-                nome: row.nome,
-                idade: row.idade,
-                desejo: row.desejo,
-                imagem: row.imagem,
-                escolhidosPor: row.escolhidos_por || []
-            }));
-        } catch (error) {
-            console.error('Erro ao carregar cartas:', error);
-            this.cartas = [];
-        }
-
-        this.renderizar();
-    }
-
-    // --------- VALIDAR EMAIL ---------
-    validarEmail(email) {
-        return email.endsWith('@zappts.com.br');
-    }
-
-    // --------- ADICIONAR CARTA ---------
-    async adicionarCarta(nome, idade, desejo, arquivoImagem) {
-        try {
-            let imagemUrl = null;
-
-            if (arquivoImagem) {
-                imagemUrl = await this.uploadImagem(arquivoImagem);
+                this.carregarCartas();
             }
 
-            const corpo = {
-                nome: nome.trim(),
-                idade: idade.trim(),
-                desejo: (desejo || '').trim() || 'Brinquedo a escolher',
-                imagem: imagemUrl,
-                escolhidos_por: []
-            };
+            // ---------- SUPABASE REST ----------
+            async db(path, options = {}) {
+                const res = await fetch(`${this.supabaseUrl}/rest/v1${path}`, {
+                    ...options,
+                    headers: {
+                        apikey: this.supabaseKey,
+                        Authorization: `Bearer ${this.supabaseKey}`,
+                        ...(options.headers || {})
+                    }
+                });
 
-            const dados = await this.db('/cartas', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Prefer: 'return=representation'
-                },
-                body: JSON.stringify(corpo)
-            });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    console.error('Erro Supabase DB:', txt);
+                    throw new Error(txt);
+                }
 
-            const salva = dados[0];
+                if (res.status === 204) return null;
+                return res.json();
+            }
 
-            this.cartas.push({
-                id: salva.id,
-                nome: salva.nome,
-                idade: salva.idade,
-                desejo: salva.desejo,
-                imagem: salva.imagem,
-                escolhidosPor: salva.escolhidos_por || []
-            });
+            async uploadImagem(file) {
+                const nomeArquivo = `${Date.now()}-${file.name}`;
+                const urlUpload = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
 
-            this.renderizar();
-            return true;
-        } catch (error) {
-            console.error('Erro ao adicionar cartinha:', error);
-            alert('Erro ao adicionar cartinha. Veja o console.');
-            return false;
-        }
-    }
+                const res = await fetch(urlUpload, {
+                    method: 'POST',
+                    headers: {
+                        apikey: this.supabaseKey,
+                        Authorization: `Bearer ${this.supabaseKey}`,
+                        'Content-Type': file.type
+                    },
+                    body: file
+                });
 
-    // --------- ESCOLHER CARTA ---------
-    async escolherCarta(cartaId, email) {
-        const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return false;
+                if (!res.ok) {
+                    const txt = await res.text();
+                    console.error('Erro upload imagem:', txt);
+                    throw new Error(txt);
+                }
 
-        if (carta.escolhidosPor.includes(email)) return true;
+                const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
+                return publicUrl;
+            }
 
-        const novaLista = [...carta.escolhidosPor, email];
+            // ---------- CARREGAR CARTAS ----------
+            async carregarCartas() {
+                try {
+                    const dados = await this.db('/cartas?select=*');
 
-        try {
-            const dados = await this.db(`/cartas?id=eq.${cartaId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Prefer: 'return=representation'
-                },
-                body: JSON.stringify({ escolhidos_por: novaLista })
-            });
+                    this.cartas = (dados || []).map(row => ({
+                        id: row.id,
+                        nome: row.nome,
+                        idade: row.idade,
+                        desejo: row.desejo,
+                        imagem: row.imagem,
+                        escolhidosPor: row.escolhidos_por || []
+                    }));
+                } catch (error) {
+                    console.error('Erro ao carregar cartas:', error);
+                    this.cartas = [];
+                }
 
-            const atualizada = dados[0];
-            carta.escolhidosPor = atualizada.escolhidos_por || [];
-            this.renderizar();
-            return true;
-        } catch (error) {
-            console.error('Erro ao registrar escolha:', error);
-            alert('Erro ao registrar escolha. Veja o console.');
-            return false;
-        }
-    }
+                this.renderizar();
+            }
 
-    // --------- REMOVER ESCOLHA ---------
-    async removerEscolha(cartaId, email) {
-        const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return;
+            // ---------- VALIDAR EMAIL ----------
+            validarEmail(email) {
+                return email.endsWith('@zappts.com.br');
+            }
 
-        const novaLista = carta.escolhidosPor.filter(e => e !== email);
+            // ---------- ADICIONAR CARTA ----------
+            async adicionarCarta(nome, idade, desejo, arquivoImagem) {
+                try {
+                    let imagemUrl = null;
 
-        try {
-            const dados = await this.db(`/cartas?id=eq.${cartaId}`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Prefer: 'return=representation'
-                },
-                body: JSON.stringify({ escolhidos_por: novaLista })
-            });
+                    if (arquivoImagem) {
+                        imagemUrl = await this.uploadImagem(arquivoImagem);
+                    }
 
-            const atualizada = dados[0];
-            carta.escolhidosPor = atualizada.escolhidos_por || [];
-            this.renderizar();
-        } catch (error) {
-            console.error('Erro ao remover escolha:', error);
-            alert('Erro ao remover escolha. Veja o console.');
-        }
-    }
+                    const corpo = {
+                        nome: nome.trim(),
+                        idade: idade.trim(),
+                        desejo: (desejo || '').trim() || 'Brinquedo a escolher',
+                        imagem: imagemUrl,
+                        escolhidos_por: []
+                    };
 
-    // --------- DELETAR CARTA (abre modal) ---------
-    deletarCarta(cartaId) {
-        this.cartaIdParaDeletar = cartaId;
-        this.abrirModalSenhaDelete();
-    }
+                    const dados = await this.db('/cartas', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=representation'
+                        },
+                        body: JSON.stringify(corpo)
+                    });
 
-    // --------- CONFIRMAR DELETE ---------
-    async confirmarDelete() {
-        const senha = document.getElementById('senhaDelete').value;
-        const erroDiv = document.getElementById('erroSenhaDelete');
+                    const salva = dados[0];
 
-        if (senha !== this.senhaRelatorio) {
-            erroDiv.classList.remove('hidden');
-            return;
-        }
+                    this.cartas.push({
+                        id: salva.id,
+                        nome: salva.nome,
+                        idade: salva.idade,
+                        desejo: salva.desejo,
+                        imagem: salva.imagem,
+                        escolhidosPor: salva.escolhidos_por || []
+                    });
 
-        try {
-            await this.db(`/cartas?id=eq.${this.cartaIdParaDeletar}`, {
-                method: 'DELETE'
-            });
+                    this.renderizar();
+                    return true;
+                } catch (error) {
+                    console.error('Erro ao adicionar cartinha:', error);
+                    alert('Erro ao adicionar cartinha. Veja o console.');
+                    return false;
+                }
+            }
 
-            this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
-            document.getElementById('modais').innerHTML = '';
-            this.renderizar();
-        } catch (error) {
-            console.error('Erro ao deletar cartinha:', error);
-            alert('Erro ao excluir cartinha. Veja o console.');
-        }
-    }
+            // ---------- ESCOLHER CARTA ----------
+            async escolherCarta(cartaId, email) {
+                const carta = this.cartas.find(c => c.id === cartaId);
+                if (!carta) return false;
 
-    // --------- RELATÓRIO CSV ---------
-    baixarRelatorio(senha) {
-        if (senha !== this.senhaRelatorio) return false;
+                if (carta.escolhidosPor.includes(email)) return true;
 
-        let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappters que Escolheram,Total de Escolhas\n';
+                const novaLista = [...carta.escolhidosPor, email];
 
-        this.cartas.forEach((carta, index) => {
-            const emails = carta.escolhidosPor.join('; ');
-            const total = carta.escolhidosPor.length;
-            conteudo += `${index + 1},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
-        });
+                try {
+                    const dados = await this.db(`/cartas?id=eq.${cartaId}&select=*`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=representation'
+                        },
+                        body: JSON.stringify({ escolhidos_por: novaLista })
+                    });
 
-        const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
+                    const atualizada = dados[0];
+                    carta.escolhidosPor = atualizada.escolhidos_por || [];
+                    this.renderizar();
+                    return true;
+                } catch (error) {
+                    console.error('Erro ao registrar escolha:', error);
+                    alert('Erro ao registrar escolha. Veja o console.');
+                    return false;
+                }
+            }
 
-        link.setAttribute('href', url);
-        link.setAttribute('download', `natal-solidario-relatorio-${new Date().toLocaleDateString()}.csv`);
-        link.style.visibility = 'hidden';
+            // ---------- REMOVER ESCOLHA ----------
+            async removerEscolha(cartaId, email) {
+                const carta = this.cartas.find(c => c.id === cartaId);
+                if (!carta) return;
 
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+                const novaLista = carta.escolhidosPor.filter(e => e !== email);
 
-        return true;
-    }
+                try {
+                    const dados = await this.db(`/cartas?id=eq.${cartaId}&select=*`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Prefer: 'return=representation'
+                        },
+                        body: JSON.stringify({ escolhidos_por: novaLista })
+                    });
 
-    // --------- RENDER (SEU HTML ORIGINAL) ---------
-    renderizar() {
-        const app = document.getElementById('app');
+                    const atualizada = dados[0];
+                    carta.escolhidosPor = atualizada.escolhidos_por || [];
+                    this.renderizar();
+                } catch (error) {
+                    console.error('Erro ao remover escolha:', error);
+                    alert('Erro ao remover escolha. Veja o console.');
+                }
+            }
 
-        app.innerHTML = `
-            <div class="min-h-screen p-8" style="background: linear-gradient(135deg, #0c1e3a 0%, #1a2f5a 50%, #0d1929 100%); background-attachment: fixed;">
-                <!-- Estrelas -->
-                <div class="absolute inset-0 pointer-events-none overflow-hidden">
-                    ${Array.from({length: 100}, (_, i) => `
-                        <div class="star absolute rounded-full bg-white" style="
-                            width: ${Math.random() * 2}px;
-                            height: ${Math.random() * 2}px;
-                            left: ${Math.random() * 100}%;
-                            top: ${Math.random() * 100}%;
-                            opacity: 0.7;
-                        "></div>
-                    `).join('')}
-                </div>
+            // ---------- DELETAR CARTA ----------
+            deletarCarta(cartaId) {
+                this.cartaIdParaDeletar = cartaId;
+                this.abrirModalSenhaDelete();
+            }
 
-                <div class="max-w-7xl mx-auto relative z-10">
-                    <!-- Cabeçalho -->
-                    <div class="text-center mb-12">
-                        <div class="text-7xl font-black tracking-wider mb-8" style="color: #0891b2; font-family: Arial, sans-serif;">
-                            zappts
+            async confirmarDelete() {
+                const senha = document.getElementById('senhaDelete').value;
+                const erroDiv = document.getElementById('erroSenhaDelete');
+
+                if (senha !== this.senhaRelatorio) {
+                    erroDiv.classList.remove('hidden');
+                    return;
+                }
+
+                try {
+                    await this.db(`/cartas?id=eq.${this.cartaIdParaDeletar}`, {
+                        method: 'DELETE'
+                    });
+
+                    this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
+                    document.getElementById('modais').innerHTML = '';
+                    this.renderizar();
+                } catch (error) {
+                    console.error('Erro ao deletar cartinha:', error);
+                    alert('Erro ao excluir cartinha. Veja o console.');
+                }
+            }
+
+            // ---------- RELATÓRIO ----------
+            baixarRelatorio(senha) {
+                if (senha !== this.senhaRelatorio) return false;
+
+                let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappters que Escolheram,Total de Escolhas\n';
+
+                this.cartas.forEach((carta, index) => {
+                    const emails = carta.escolhidosPor.join('; ');
+                    const total = carta.escolhidosPor.length;
+                    conteudo += `${index + 1},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
+                });
+
+                const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+
+                link.setAttribute('href', url);
+                link.setAttribute('download', `natal-solidario-relatorio-${new Date().toLocaleDateString()}.csv`);
+                link.style.visibility = 'hidden';
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                return true;
+            }
+
+            // ---------- RENDER ----------
+            renderizar() {
+                const app = document.getElementById('app');
+
+                app.innerHTML = `
+                    <div class="min-h-screen p-8" style="background: linear-gradient(135deg, #0c1e3a 0%, #1a2f5a 50%, #0d1929 100%); background-attachment: fixed;">
+                        <!-- Estrelas -->
+                        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                            ${Array.from({length: 100}, () => `
+                                <div class="star absolute rounded-full bg-white" style="
+                                    width: ${Math.random() * 2}px;
+                                    height: ${Math.random() * 2}px;
+                                    left: ${Math.random() * 100}%;
+                                    top: ${Math.random() * 100}%;
+                                    opacity: 0.7;
+                                "></div>
+                            `).join('')}
                         </div>
-                        <h1 class="text-7xl font-black text-white mb-8 drop-shadow-2xl" style="font-family: Arial, sans-serif; letter-spacing: 0.02em;">
-                            🎄 Natal Solidário 2025 🎄
-                        </h1>
-                        <p class="text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family: Arial, sans-serif;">
-                            Escolha uma cartinha e realize seu sonho de Natal!
-                        </p>
-                        
-                        <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
-                            <p class="text-white font-bold text-lg">
-                                ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
-                            </p>
-                        </div>
-                    </div>
 
-                    <!-- Botões -->
-                    <div class="flex justify-center gap-4 mb-8 flex-wrap">
-                        <button onclick="app.abrirModalNovaCarta()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                            ➕ Adicionar Nova Cartinha
-                        </button>
-                        <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                            ℹ️ Saiba Mais
-                        </button>
-                        <button onclick="app.abrirModalSenha()" ${this.cartas.length === 0 ? 'disabled' : ''} class="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                            📊 Baixar Relatório
-                        </button>
-                    </div>
-
-                    <!-- Grid de Cartas -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
-                        ${this.cartas.length > 0 ? this.cartas.map((c, i) => `
-                            <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                                <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
-                                    <div class="flex justify-between items-start">
-                                        <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
-                                        <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
-                                    </div>
-                                    <div class="text-center flex-1 flex items-center justify-center">
-                                        ${c.imagem ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">` : '<p class="text-5xl">😊</p>'}
-                                    </div>
-                                    <div class="text-center">
-                                        <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                                        <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
-                                        <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
-                                    </div>
-                                    <div class="text-center">
-                                        <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
-                                            👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
-                                        </p>
-                                    </div>
+                        <div class="max-w-7xl mx-auto relative z-10">
+                            <!-- Cabeçalho -->
+                            <div class="text-center mb-12">
+                                <div class="text-7xl font-black tracking-wider mb-8" style="color: #0891b2; font-family: Arial, sans-serif;">
+                                    zappts
+                                </div>
+                                <h1 class="text-7xl font-black text-white mb-8 drop-shadow-2xl" style="font-family: Arial, sans-serif; letter-spacing: 0.02em;">
+                                    🎄 Natal Solidário 2025 🎄
+                                </h1>
+                                <p class="text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family: Arial, sans-serif;">
+                                    Escolha uma cartinha e realize seu sonho de Natal!
+                                </p>
+                                
+                                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
+                                    <p class="text-white font-bold text-lg">
+                                        ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
+                                    </p>
                                 </div>
                             </div>
-                        `).join('') : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'}
-                    </div>
 
-                    <!-- Resumo de Escolhas -->
-                    ${this.cartas.some(c => c.escolhidosPor.length > 0) ? `
-                        <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
-                            <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                ${this.cartas.filter(c => c.escolhidosPor.length > 0).map((c, i) => `
-                                    <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
-                                        <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
-                                        <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
-                                        <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
-                                        <div class="space-y-1">
-                                            <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
-                                            ${c.escolhidosPor.map(email => `
-                                                <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
-                                                    <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
-                                                    <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
-                                                </div>
-                                            `).join('')}
+                            <!-- Botões -->
+                            <div class="flex justify-center gap-4 mb-8 flex-wrap">
+                                <button onclick="app.abrirModalNovaCarta()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    ➕ Adicionar Nova Cartinha
+                                </button>
+                                <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    ℹ️ Saiba Mais
+                                </button>
+                                <button onclick="app.abrirModalSenha()" ${this.cartas.length === 0 ? 'disabled' : ''} class="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                                    📊 Baixar Relatório
+                                </button>
+                            </div>
+
+                            <!-- Grid de Cartas -->
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
+                                ${this.cartas.length > 0 ? this.cartas.map((c, i) => `
+                                    <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
+                                        <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
+                                            <div class="flex justify-between items-start">
+                                                <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                                                <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                                            </div>
+                                            <div class="text-center flex-1 flex items-center justify-center">
+                                                ${c.imagem ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">` : '<p class="text-5xl">😊</p>'}
+                                            </div>
+                                            <div class="text-center">
+                                                <p class="font-black text-blue-900 text-sm">${c.nome}</p>
+                                                <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                                                <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
+                                            </div>
+                                            <div class="text-center">
+                                                <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
+                                                    👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                `).join('')}
+                                `).join('') : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'}
+                            </div>
+
+                            <!-- Resumo de Escolhas -->
+                            ${this.cartas.some(c => c.escolhidosPor.length > 0) ? `
+                                <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
+                                    <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        ${this.cartas.filter(c => c.escolhidosPor.length > 0).map(c => `
+                                            <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
+                                                <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
+                                                <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
+                                                <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
+                                                <div class="space-y-1">
+                                                    <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
+                                                    ${c.escolhidosPor.map(email => `
+                                                        <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
+                                                            <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
+                                                            <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Modais -->
+                        <div id="modais"></div>
+                    </div>
+                `;
+
+                window.app = this;
+            }
+
+            // ---------- MODAIS ----------
+            abrirModalNovaCarta() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
+                            <div class="space-y-4 mb-6">
+                                <input type="text" id="nomeCarta" placeholder="Nome da cartinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
+                            </div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarNovaCarta()" class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Adicionar</button>
                             </div>
                         </div>
-                    ` : ''}
-                </div>
-
-                <!-- Modais -->
-                <div id="modais"></div>
-            </div>
-        `;
-
-        window.app = this;
-    }
-
-    // --------- MODAIS (iguais aos seus, só chamando os métodos novos) ---------
-    abrirModalNovaCarta() {
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
-                    <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
-                    <div class="space-y-4 mb-6">
-                        <input type="text" id="nomeCarta" placeholder="Nome da cartinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
-                        <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
-                        <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
-                        <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
                     </div>
-                    <div class="flex gap-3">
-                        <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                        <button onclick="app.confirmarNovaCarta()" class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Adicionar</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+                `;
+            }
 
-    async confirmarNovaCarta() {
-        const nome = document.getElementById('nomeCarta').value;
-        const idade = document.getElementById('idadeCarta').value;
-        const desejo = document.getElementById('desejoCarta').value;
-        const imagemInput = document.getElementById('imagemCarta');
-        const arquivo = imagemInput.files[0] || null;
+            async confirmarNovaCarta() {
+                const nome = document.getElementById('nomeCarta').value;
+                const idade = document.getElementById('idadeCarta').value;
+                const desejo = document.getElementById('desejoCarta').value;
+                const imagemInput = document.getElementById('imagemCarta');
+                const arquivo = imagemInput.files[0] || null;
 
-        if (!nome.trim() || !idade.trim()) {
-            alert('Preencha nome e idade!');
-            return;
-        }
+                if (!nome.trim() || !idade.trim()) {
+                    alert('Preencha nome e idade!');
+                    return;
+                }
 
-        await this.adicionarCarta(nome, idade, desejo, arquivo);
-        document.getElementById('modais').innerHTML = '';
-    }
+                await this.adicionarCarta(nome, idade, desejo, arquivo);
+                document.getElementById('modais').innerHTML = '';
+            }
 
-    abrirModalEscolha(cartaId) {
-        const carta = this.cartas.find(c => c.id === cartaId);
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
-                    <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
-                    <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
-                        ${carta.imagem ? `<img src="${carta.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">` : '<p class="text-5xl mb-2">😊</p>'}
-                        <p class="font-black text-lg text-blue-900">${carta.nome}</p>
-                        <p class="text-blue-800 font-bold">${carta.idade}</p>
-                        <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${carta.desejo}</p>
-                    </div>
-                    <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
-                    <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Email deve terminar com @zappts.com.br</div>
-                    <div class="flex gap-3">
-                        <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                        <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    async confirmarEscolha(cartaId) {
-        const email = document.getElementById('emailEscolha').value;
-        const erroDiv = document.getElementById('erroEmail');
-        
-        if (!this.validarEmail(email)) {
-            erroDiv.classList.remove('hidden');
-            return;
-        }
-        
-        await this.escolherCarta(cartaId, email);
-        document.getElementById('modais').innerHTML = '';
-    }
-
-    abrirModalInfo() {
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl border-2 border-cyan-400 max-h-96 overflow-y-auto">
-                    <h2 class="text-2xl font-black text-blue-700 mb-4">📋 Regras e Prazos</h2>
-                    <div class="space-y-4 text-gray-800">
-                        <div>
-                            <h3 class="font-black text-blue-700 mb-2 text-lg">📅 Cronograma:</h3>
-                            <ul class="space-y-1 text-sm ml-4 font-semibold">
-                                <li>✓ <strong>Abertura das inscrições:</strong> 26/11/2025</li>
-                                <li>✓ <strong>Prazo final para inscrição:</strong> 05/12/2025</li>
-                                <li>✓ <strong>Distribuição dos vouchers:</strong> 08/12/2025</li>
-                                <li>✓ <strong>Entrega dos brinquedos:</strong> 20/12/2025</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h3 class="font-black text-blue-700 mb-2 text-lg">🎁 Como Funciona:</h3>
-                            <ul class="space-y-1 text-sm ml-4 font-semibold">
-                                <li>• Cada Zappter recebe R$ 50 no Caju</li>
-                                <li>• Participa individual ou em grupo</li>
-                                <li>• Acumula vouchers para brinquedos maiores</li>
-                                <li>• Escolhe a carinha e compra o brinquedo</li>
-                            </ul>
+            abrirModalEscolha(cartaId) {
+                const carta = this.cartas.find(c => c.id === cartaId);
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
+                            <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
+                                ${carta.imagem ? `<img src="${carta.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">` : '<p class="text-5xl mb-2">😊</p>'}
+                                <p class="font-black text-lg text-blue-900">${carta.nome}</p>
+                                <p class="text-blue-800 font-bold">${carta.idade}</p>
+                                <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${carta.desejo}</p>
+                            </div>
+                            <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Email deve terminar com @zappts.com.br</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
+                            </div>
                         </div>
                     </div>
-                    <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Entendi!</button>
-                </div>
-            </div>
-        `;
-    }
+                `;
+            }
 
-    abrirModalSenha() {
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
-                    <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Acesso ao Relatório</h2>
-                    <p class="text-gray-700 mb-6 font-semibold">Digite a senha:</p>
-                    <input type="password" id="senhaInput" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
-                    <div id="erroSenha" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
-                    <div class="flex gap-3">
-                        <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                        <button onclick="app.confirmarSenha()" class="flex-1 px-4 py-2 bg-green-600 text-white font-bold rounded-lg text-lg">Baixar</button>
+            async confirmarEscolha(cartaId) {
+                const email = document.getElementById('emailEscolha').value;
+                const erroDiv = document.getElementById('erroEmail');
+                
+                if (!this.validarEmail(email)) {
+                    erroDiv.classList.remove('hidden');
+                    return;
+                }
+                
+                await this.escolherCarta(cartaId, email);
+                document.getElementById('modais').innerHTML = '';
+            }
+
+            abrirModalInfo() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl border-2 border-cyan-400 max-h-96 overflow-y-auto">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">📋 Regras e Prazos</h2>
+                            <div class="space-y-4 text-gray-800">
+                                <div>
+                                    <h3 class="font-black text-blue-700 mb-2 text-lg">📅 Cronograma:</h3>
+                                    <ul class="space-y-1 text-sm ml-4 font-semibold">
+                                        <li>✓ <strong>Abertura das inscrições:</strong> 26/11/2025</li>
+                                        <li>✓ <strong>Prazo final para inscrição:</strong> 05/12/2025</li>
+                                        <li>✓ <strong>Distribuição dos vouchers:</strong> 08/12/2025</li>
+                                        <li>✓ <strong>Entrega dos brinquedos:</strong> 20/12/2025</li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 class="font-black text-blue-700 mb-2 text-lg">🎁 Como Funciona:</h3>
+                                    <ul class="space-y-1 text-sm ml-4 font-semibold">
+                                        <li>• Cada Zappter recebe R$ 50 no Caju</li>
+                                        <li>• Participa individual ou em grupo</li>
+                                        <li>• Acumula vouchers para brinquedos maiores</li>
+                                        <li>• Escolhe a carinha e compra o brinquedo</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Entendi!</button>
+                        </div>
                     </div>
-                </div>
-            </div>
-        `;
-    }
+                `;
+            }
 
-    confirmarSenha() {
-        const senha = document.getElementById('senhaInput').value;
-        const erroDiv = document.getElementById('erroSenha');
-        
-        if (this.baixarRelatorio(senha)) {
-            document.getElementById('modais').innerHTML = '';
-        } else {
-            erroDiv.classList.remove('hidden');
+            abrirModalSenha() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Acesso ao Relatório</h2>
+                            <p class="text-gray-700 mb-6 font-semibold">Digite a senha:</p>
+                            <input type="password" id="senhaInput" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroSenha" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarSenha()" class="flex-1 px-4 py-2 bg-green-600 text-white font-bold rounded-lg text-lg">Baixar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            confirmarSenha() {
+                const senha = document.getElementById('senhaInput').value;
+                const erroDiv = document.getElementById('erroSenha');
+                
+                if (this.baixarRelatorio(senha)) {
+                    document.getElementById('modais').innerHTML = '';
+                } else {
+                    erroDiv.classList.remove('hidden');
+                }
+            }
+
+            abrirModalSenhaDelete() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Excluir Cartinha</h2>
+                            <p class="text-gray-700 mb-6 font-semibold">Digite a senha para excluir:</p>
+                            <input type="password" id="senhaDelete" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroSenhaDelete" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white font-bold rounded-lg text-lg">Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            ampliarImagem(src) {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50">
+                        <div class="relative">
+                            <button onclick="document.getElementById('modais').innerHTML = ''" class="absolute -top-12 right-0 text-white hover:text-gray-300 text-3xl">✕</button>
+                            <img src="${src}" class="rounded-xl shadow-2xl max-w-full max-h-96 object-contain">
+                        </div>
+                    </div>
+                `;
+            }
         }
-    }
 
-    abrirModalSenhaDelete() {
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-                <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
-                    <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Excluir Cartinha</h2>
-                    <p class="text-gray-700 mb-6 font-semibold">Digite a senha para excluir:</p>
-                    <input type="password" id="senhaDelete" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
-                    <div id="erroSenhaDelete" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
-                    <div class="flex gap-3">
-                        <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                        <button onclick="app.confirmarDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white font-bold rounded-lg text-lg">Excluir</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+        // Inicializa quando a página carrega
+        window.addEventListener('load', () => {
+            new NatalSolidario();
+        });
+    </script>
+</body>
+</html>
 
-    ampliarImagem(src) {
-        const modaisDiv = document.getElementById('modais');
-        modaisDiv.innerHTML = `
-            <div class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50">
-                <div class="relative">
-                    <button onclick="document.getElementById('modais').innerHTML = ''" class="absolute -top-12 right-0 text-white hover:text-gray-300 text-3xl">✕</button>
-                    <img src="${src}" class="rounded-xl shadow-2xl max-w-full max-h-96 object-contain">
-                </div>
-            </div>
-        `;
-    }
-}
-
-// Inicializa quando a página carrega
-window.addEventListener('load', () => {
-    new NatalSolidario();
-});
-</script>
