@@ -6,7 +6,7 @@ class NatalSolidario {
     // CONTEXTO DO USUÁRIO
     this.meuEmail = null;
     this.minhaCartaId = null;
-    this.numeroCartaEscolhida = null;
+    this.numeroCartaEscolhida = null;  // Número da cartinha que o usuário escolheu
 
     // Recupera escolha anterior do localStorage (última cartinha escolhida)
     const salvo = localStorage.getItem('natalEscolha');
@@ -15,7 +15,7 @@ class NatalSolidario {
         const parsed = JSON.parse(salvo);
         this.meuEmail = parsed.email || null;
         this.minhaCartaId = parsed.cartaId || null;
-        this.numeroCartaEscolhida = parsed.numeroCarta || null;
+        this.numeroCartaEscolhida = parsed.numeroCarta || null;  // Recupera o número da cartinha escolhida
       } catch (e) {
         console.error('Erro ao ler natalEscolha do localStorage', e);
       }
@@ -23,7 +23,7 @@ class NatalSolidario {
 
     // CONFIG SUPABASE
     this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
-    this.supabaseKey = 'YOUR_SUPABASE_KEY';
+    this.supabaseKey = 'YOUR_SUPABASE_KEY';  // Atualize com a sua chave
     this.bucket = 'cartinhas';
 
     this.carregarCartas();
@@ -50,6 +50,30 @@ class NatalSolidario {
     return res.json();
   }
 
+  async uploadImagem(file) {
+    const nomeArquivo = `${Date.now()}-${file.name}`;
+    const urlUpload = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
+
+    const res = await fetch(urlUpload, {
+      method: 'POST',
+      headers: {
+        apikey: this.supabaseKey,
+        Authorization: `Bearer ${this.supabaseKey}`,
+        'Content-Type': file.type
+      },
+      body: file
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('Erro upload imagem:', txt);
+      throw new Error(txt);
+    }
+
+    const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
+    return publicUrl;
+  }
+
   // ---------- CARREGAR CARTAS ----------
   async carregarCartas() {
     try {
@@ -61,7 +85,7 @@ class NatalSolidario {
         idade: row.idade,
         desejo: row.desejo,
         imagem: row.imagem,
-        numero_cartao: row.numero_cartao,
+        numero_cartao: row.numero_cartao,  // Adicionando o número da cartinha
         escolhidosPor: row.escolhidos_por || [] // Armazena os e-mails dos escolhentes
       }));
 
@@ -108,10 +132,13 @@ class NatalSolidario {
         body: JSON.stringify({ escolhidos_por: novaLista })
       });
 
-      // Salva a escolha no localStorage para persistência local
+      // Caso o registro seja feito com sucesso
+      console.log('Escolha registrada com sucesso:', dados);
+
+      // Salva no localStorage para persistência local
       this.meuEmail = email;
       this.minhaCartaId = cartaId;
-      this.numeroCartaEscolhida = numeroCartao;
+      this.numeroCartaEscolhida = numeroCartao;  // Salvando o número da cartinha escolhida
       localStorage.setItem('natalEscolha', JSON.stringify({ email, cartaId, numeroCarta: numeroCartao }));
 
       // Atualiza a lista de cartas
@@ -131,7 +158,7 @@ class NatalSolidario {
     const carta = this.cartas.find(c => c.id === cartaId);
     if (!carta) return false;
 
-    // Verifica se a cartinha já foi escolhida por outra pessoa
+    // Verifica se a cartinha já foi escolhida
     if (carta.escolhidosPor.length > 0 && !carta.escolhidosPor.includes(email)) {
       return false;
     }
@@ -139,7 +166,7 @@ class NatalSolidario {
     // Registra a escolha da cartinha
     const ok = await this.registrarEscolha(email, cartaId, numeroCarta);
     if (ok) {
-      carta.escolhidosPor.push(email); // Atualiza o array de escolhidos
+      carta.escolhidosPor.push(email); // Atualiza a cartinha com o novo e-mail
       this.renderizar();
       return true;
     } else {
