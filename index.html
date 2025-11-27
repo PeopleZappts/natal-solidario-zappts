@@ -24,6 +24,22 @@
         this.cartas = [];
         this.senhaRelatorio = '@People123';
 
+        // CONTEXTO DO USUÁRIO
+        this.meuEmail = null;
+        this.minhaCartaId = null;
+
+        // Recupera escolha anterior do localStorage (última cartinha escolhida)
+        const salvo = localStorage.getItem('natalEscolha');
+        if (salvo) {
+          try {
+            const parsed = JSON.parse(salvo);
+            this.meuEmail = parsed.email || null;
+            this.minhaCartaId = parsed.cartaId || null;
+          } catch (e) {
+            console.error('Erro ao ler natalEscolha do localStorage', e);
+          }
+        }
+
         // CONFIG SUPABASE
         this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
         this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
@@ -88,8 +104,20 @@
             idade: row.idade,
             desejo: row.desejo,
             imagem: row.imagem,
+            // usamos array, mas a regra é: no máximo 1 email por cartinha
             escolhidosPor: row.escolhidos_por || []
           }));
+
+          // Confere se a escolha salva ainda existe no banco
+          if (this.meuEmail && this.minhaCartaId) {
+            const carta = this.cartas.find(c => c.id === this.minhaCartaId);
+            const aindaExiste = carta && carta.escolhidosPor.includes(this.meuEmail);
+            if (!aindaExiste) {
+              this.meuEmail = null;
+              this.minhaCartaId = null;
+              localStorage.removeItem('natalEscolha');
+            }
+          }
         } catch (error) {
           console.error('Erro ao carregar cartas:', error);
           this.cartas = [];
@@ -117,6 +145,7 @@
             idade: idade.trim(),
             desejo: (desejo || '').trim() || 'Brinquedo a escolher',
             imagem: imagemUrl,
+            // começa sem ninguém, e depois terá no máximo 1 email
             escolhidos_por: []
           };
 
@@ -154,10 +183,26 @@
         const carta = this.cartas.find(c => c.id === cartaId);
         if (!carta) return false;
 
-        // se já tiver esse e-mail na cartinha, ignora
-        if (carta.escolhidosPor.includes(email)) return true;
+        // Se já existe outro email nessa cartinha, não deixa sobrescrever aqui por segurança
+        if (
+          carta.escolhidosPor.length > 0 &&
+          !carta.escolhidosPor.includes(email)
+        ) {
+          // quem chamou essa função (confirmarEscolha) já faz a mensagem de erro
+          return false;
+        }
 
-        const novaLista = [...carta.escolhidosPor, email];
+        // Se já estiver com o mesmo email, só atualiza localStorage e render
+        if (carta.escolhidosPor.includes(email)) {
+          this.meuEmail = email;
+          this.minhaCartaId = cartaId;
+          localStorage.setItem('natalEscolha', JSON.stringify({ email, cartaId }));
+          this.renderizar();
+          return true;
+        }
+
+        // Regra: UM email por cartinha -> sobrescreve o array com apenas esse email
+        const novaLista = [email];
 
         try {
           await this.db(`/cartas?id=eq.${cartaId}`, {
@@ -170,6 +215,12 @@
           });
 
           carta.escolhidosPor = novaLista;
+
+          // Salva contexto do usuário
+          this.meuEmail = email;
+          this.minhaCartaId = cartaId;
+          localStorage.setItem('natalEscolha', JSON.stringify({ email, cartaId }));
+
           this.renderizar();
           return true;
         } catch (error) {
@@ -197,6 +248,14 @@
           });
 
           carta.escolhidosPor = novaLista;
+
+          // Se o usuário removeu a própria escolha, limpamos o localStorage
+          if (this.meuEmail && email === this.meuEmail && cartaId === this.minhaCartaId) {
+            this.meuEmail = null;
+            this.minhaCartaId = null;
+            localStorage.removeItem('natalEscolha');
+          }
+
           this.renderizar();
         } catch (error) {
           console.error('Erro ao remover escolha:', error);
@@ -225,6 +284,14 @@
           });
 
           this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
+
+          // Se a carta deletada era a escolha do usuário, limpamos
+          if (this.minhaCartaId === this.cartaIdParaDeletar) {
+            this.meuEmail = null;
+            this.minhaCartaId = null;
+            localStorage.removeItem('natalEscolha');
+          }
+
           document.getElementById('modais').innerHTML = '';
           this.renderizar();
         } catch (error) {
@@ -237,7 +304,7 @@
       baixarRelatorio(senha) {
         if (senha !== this.senhaRelatorio) return false;
 
-        let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappters que Escolheram,Total de Escolhas\n';
+        let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappter que Escolheu,Total de Escolhas\n';
 
         this.cartas.forEach((carta, index) => {
           const emails = carta.escolhidosPor.join('; ');
@@ -263,6 +330,14 @@
       // ---------- RENDER ----------
       renderizar() {
         const app = document.getElementById('app');
+
+        const totalCartas = this.cartas.length;
+        const totalCartasOcupadas = this.cartas.filter(c => c.escolhidosPor.length > 0).length;
+        const totalDisponiveis = totalCartas - totalCartasOcupadas;
+
+        const minhaCarta = this.minhaCartaId
+          ? this.cartas.find(c => c.id === this.minhaCartaId)
+          : null;
 
         app.innerHTML = `
           <div class="min-h-screen p-8" style="background: linear-gradient(135deg, #0c1e3a 0%, #1a2f5a 50%, #0d1929 100%); background-attachment: fixed;">
@@ -293,11 +368,27 @@
                   Escolha uma cartinha e realize um sonho de Natal!
                 </p>
                 
-                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400 mb-8">
+                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400 mb-4">
                   <p class="text-white font-bold text-lg">
-                    ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
+                    ✨ ${totalCartas} cartinhas • ${totalCartasOcupadas} já escolhidas • ${totalDisponiveis} disponíveis
                   </p>
                 </div>
+
+                ${
+                  minhaCarta && this.meuEmail
+                    ? `
+                      <div class="max-w-xl mx-auto bg-white bg-opacity-95 rounded-xl p-4 border-2 border-emerald-400 mb-6 text-left">
+                        <p class="text-xs font-bold text-emerald-700 mb-1 uppercase tracking-wide">Sua participação</p>
+                        <p class="text-sm font-semibold text-gray-800 mb-2">
+                          Você escolheu a <span class="font-black text-blue-700">Cartinha #${this.cartas.indexOf(minhaCarta) + 1}</span>.
+                        </p>
+                        <p class="text-sm text-gray-700"><span class="font-bold">Criança:</span> ${minhaCarta.nome}, ${minhaCarta.idade} anos</p>
+                        <p class="text-sm text-gray-700"><span class="font-bold">Desejo:</span> ${minhaCarta.desejo}</p>
+                        <p class="text-xs text-gray-500 mt-2">Se precisar alterar, fale com o time de People.</p>
+                      </div>
+                    `
+                    : ''
+                }
 
                 <!-- Botão principal (para todos) -->
                 <div class="flex justify-center mb-4">
@@ -312,33 +403,57 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
                   ${
                     this.cartas.length > 0
-                      ? this.cartas.map((c, i) => `
-                        <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                          <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
-                            <div class="flex justify-between items-start">
-                              <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
-                              <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                      ? this.cartas.map((c, i) => {
+                          const ocupada = c.escolhidosPor.length > 0;
+                          const eMinha = this.minhaCartaId === c.id && this.meuEmail && c.escolhidosPor.includes(this.meuEmail);
+
+                          return `
+                            <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
+                              <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between ${
+                                ocupada && !eMinha ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105 cursor-pointer'
+                              } transition-transform" ${
+                                ocupada && !eMinha
+                                  ? ''
+                                  : `onclick="app.abrirModalEscolha(${c.id})"`
+                              }>
+                                <div class="flex justify-between items-start">
+                                  <div class="flex flex-col gap-1">
+                                    <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                                    ${
+                                      eMinha
+                                        ? `<span class="inline-block bg-white text-blue-800 px-2 py-1 rounded-full text-[10px] font-black border border-blue-800">Sua cartinha 💙</span>`
+                                        : ocupada
+                                          ? `<span class="inline-block bg-red-700 text-white px-2 py-1 rounded-full text-[10px] font-black">Já escolhida</span>`
+                                          : `<span class="inline-block bg-emerald-700 text-white px-2 py-1 rounded-full text-[10px] font-black">Disponível</span>`
+                                    }
+                                  </div>
+                                  <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                                </div>
+                                <div class="text-center flex-1 flex items-center justify-center">
+                                  ${
+                                    c.imagem
+                                      ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg ${ocupada && !eMinha ? '' : 'cursor-pointer'}" ${
+                                          ocupada && !eMinha
+                                            ? ''
+                                            : `onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')"`
+                                        }>`
+                                      : '<p class="text-5xl">😊</p>'
+                                  }
+                                </div>
+                                <div class="text-center">
+                                  <p class="font-black text-blue-900 text-sm">${c.nome}</p>
+                                  <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                                  <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
+                                </div>
+                                <div class="text-center">
+                                  <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
+                                    👤 ${c.escolhidosPor.length === 0 ? 'Ainda ninguém escolheu' : 'Já tem um Zappter responsável'}
+                                  </p>
+                                </div>
+                              </div>
                             </div>
-                            <div class="text-center flex-1 flex items-center justify-center">
-                              ${
-                                c.imagem
-                                  ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
-                                  : '<p class="text-5xl">😊</p>'
-                              }
-                            </div>
-                            <div class="text-center">
-                              <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                              <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
-                              <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
-                            </div>
-                            <div class="text-center">
-                              <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
-                                👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      `).join('')
+                          `;
+                        }).join('')
                       : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
                   }
                 </div>
@@ -359,7 +474,7 @@
                                 <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
                                 <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
                                 <div class="space-y-1">
-                                  <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
+                                  <p class="text-xs font-bold text-blue-700">Responsável:</p>
                                   ${
                                     c.escolhidosPor.map(email => `
                                       <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
@@ -476,9 +591,12 @@
       abrirModalEscolha(cartaId) {
         const carta = this.cartas.find(c => c.id === cartaId);
         const modaisDiv = document.getElementById('modais');
+
+        const ocupada = carta.escolhidosPor.length > 0;
+
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400 max-h-[90vh] overflow-y-auto">
               <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
               <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
                 ${
@@ -487,31 +605,110 @@
                     : '<p class="text-5xl mb-2">😊</p>'
                 }
                 <p class="font-black text-lg text-blue-900">${carta.nome}</p>
-                <p class="text-blue-800 font-bold">${carta.idade}</p>
+                <p class="text-blue-800 font-bold">${carta.idade} anos</p>
                 <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${carta.desejo}</p>
+                ${
+                  ocupada
+                    ? `<p class="mt-3 text-sm text-red-700 font-bold">Esta cartinha já foi escolhida. Se precisar ajustar, fale com o time de People.</p>`
+                    : ''
+                }
               </div>
-              <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
-              <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Email deve terminar com @zappts.com.br</div>
-              <div class="flex gap-3">
-                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
-              </div>
+
+              ${
+                ocupada
+                  ? `
+                    <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-2 px-4 py-2 bg-gray-500 text-white font-bold rounded-lg text-lg">Fechar</button>
+                  `
+                  : `
+                    <p class="text-xs text-gray-600 font-semibold mb-2">
+                      Cada cartinha pode ser escolhida por <span class="font-bold">uma</span> pessoa. 
+                      Se quiser escolher mais de uma cartinha, repita o processo com o mesmo e-mail.
+                    </p>
+
+                    <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-3">
+
+                    <div class="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-3 text-xs font-semibold text-yellow-900 mb-3">
+                      <p>
+                        Ao confirmar, você está assumindo um compromisso com essa criança: 
+                        comprar e enviar o presente dentro do prazo combinado. 
+                        Ela está esperando por você. 💛
+                      </p>
+                    </div>
+
+                    <div class="flex items-start gap-2 mb-3">
+                      <input type="checkbox" id="aceiteTermo" class="mt-1">
+                      <label for="aceiteTermo" class="text-xs text-gray-700 font-semibold">
+                        Li e estou ciente de que estou assumindo um compromisso de presentear esta criança dentro do prazo informado.
+                      </label>
+                    </div>
+
+                    <div id="erroEmail" class="text-red-600 text-xs font-bold mb-1 hidden">
+                      ⚠️ Email deve terminar com @zappts.com.br
+                    </div>
+                    <div id="erroTermo" class="text-red-600 text-xs font-bold mb-1 hidden">
+                      ⚠️ Você precisa aceitar o compromisso antes de confirmar.
+                    </div>
+                    <div id="erroEscolha" class="text-red-600 text-xs font-bold mb-3 hidden"></div>
+
+                    <div class="flex gap-3 mt-4">
+                      <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                      <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
+                    </div>
+                  `
+              }
             </div>
           </div>
         `;
       }
 
       async confirmarEscolha(cartaId) {
-        const email = document.getElementById('emailEscolha').value;
-        const erroDiv = document.getElementById('erroEmail');
+        const email = document.getElementById('emailEscolha').value.trim();
+        const aceite = document.getElementById('aceiteTermo').checked;
+
+        const erroEmail = document.getElementById('erroEmail');
+        const erroTermo = document.getElementById('erroTermo');
+        const erroEscolha = document.getElementById('erroEscolha');
+
+        // Reseta mensagens
+        erroEmail.classList.add('hidden');
+        erroTermo.classList.add('hidden');
+        erroEscolha.classList.add('hidden');
+        erroEscolha.textContent = '';
 
         if (!this.validarEmail(email)) {
-          erroDiv.classList.remove('hidden');
+          erroEmail.classList.remove('hidden');
           return;
         }
 
-        await this.escolherCarta(cartaId, email);
-        document.getElementById('modais').innerHTML = '';
+        if (!aceite) {
+          erroTermo.classList.remove('hidden');
+          return;
+        }
+
+        const carta = this.cartas.find(c => c.id === cartaId);
+        if (!carta) {
+          erroEscolha.textContent = 'Erro ao localizar a cartinha. Tente novamente.';
+          erroEscolha.classList.remove('hidden');
+          return;
+        }
+
+        // Regra principal: UMA PESSOA por cartinha
+        if (
+          carta.escolhidosPor.length > 0 &&
+          !carta.escolhidosPor.includes(email)
+        ) {
+          erroEscolha.textContent = '⚠️ Esta cartinha já foi escolhida por outra pessoa. Escolha outra cartinha, por favor.';
+          erroEscolha.classList.remove('hidden');
+          return;
+        }
+
+        const ok = await this.escolherCarta(cartaId, email);
+        if (ok) {
+          document.getElementById('modais').innerHTML = '';
+        } else {
+          erroEscolha.textContent = '⚠️ Não foi possível registrar a escolha. Tente novamente ou fale com o time de People.';
+          erroEscolha.classList.remove('hidden');
+        }
       }
 
       abrirModalInfo() {
@@ -639,4 +836,3 @@
   </script>
 </body>
 </html>
-
