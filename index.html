@@ -145,7 +145,7 @@
                                     🎄 Natal Solidário 2025 🎄
                                 </h1>
                                 <p class="text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family: Arial, sans-serif;">
-                                    Escolha uma carinha e realize seu sonho de Natal!
+                                    Escolha uma cartinha e realize seu sonho de Natal!
                                 </p>
                                 
                                 <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
@@ -236,7 +236,7 @@
                         <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
                             <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
                             <div class="space-y-4 mb-6">
-                                <input type="text" id="nomeCarta" placeholder="Nome da carinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                                <input type="text" id="nomeCarta" placeholder="Nome da cartinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                                 <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                                 <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                                 <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
@@ -379,9 +379,39 @@
             }
 
             deletarCarta(cartaId) {
-                if (confirm('Tem certeza?')) {
-                    this.deletarCarta(cartaId);
+                this.cartaIdParaDeletar = cartaId;
+                this.abrirModalSenhaDelete();
+            }
+
+            abrirModalSenhaDelete() {
+                const modaisDiv = document.getElementById('modais');
+                modaisDiv.innerHTML = `
+                    <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+                        <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+                            <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Excluir Cartinha</h2>
+                            <p class="text-gray-700 mb-6 font-semibold">Digite a senha para excluir:</p>
+                            <input type="password" id="senhaDelete" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+                            <div id="erroSenhaDelete" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
+                            <div class="flex gap-3">
+                                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                                <button onclick="app.confirmarDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white font-bold rounded-lg text-lg">Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            confirmarDelete() {
+                const senha = document.getElementById('senhaDelete').value;
+                const erroDiv = document.getElementById('erroSenhaDelete');
+                
+                if (senha === this.senhaRelatorio) {
+                    this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
+                    this.salvarCartas();
+                    document.getElementById('modais').innerHTML = '';
                     this.renderizar();
+                } else {
+                    erroDiv.classList.remove('hidden');
                 }
             }
 
