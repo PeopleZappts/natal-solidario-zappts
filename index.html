@@ -24,9 +24,6 @@
         this.cartas = [];
         this.senhaRelatorio = '@People123';
 
-        // detecta se é /admin
-        this.isAdmin = window.location.pathname.toLowerCase().includes('admin');
-
         // CONFIG SUPABASE
         this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
         this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
@@ -84,6 +81,7 @@
       async carregarCartas() {
         try {
           const dados = await this.db('/cartas?select=*');
+
           this.cartas = (dados || []).map(row => ({
             id: row.id,
             nome: row.nome,
@@ -102,8 +100,7 @@
 
       // ---------- VALIDAR EMAIL ----------
       validarEmail(email) {
-        const e = (email || '').trim().toLowerCase();
-        return e.endsWith('@zappts.com.br');
+        return email.endsWith('@zappts.com.br');
       }
 
       // ---------- ADICIONAR CARTA ----------
@@ -152,21 +149,13 @@
         }
       }
 
-      // ---------- ESCOLHER CARTA (1 escolha por cartinha) ----------
+      // ---------- ESCOLHER CARTA ----------
       async escolherCarta(cartaId, email) {
         const carta = this.cartas.find(c => c.id === cartaId);
         if (!carta) return false;
 
-        // se já foi escolhida por alguém, trava
-        if (carta.escolhidosPor.length >= 1 && !carta.escolhidosPor.includes(email)) {
-          alert('Essa cartinha já foi escolhida por outra pessoa. Escolha outra 🙂');
-          return false;
-        }
-
-        if (carta.escolhidosPor.includes(email)) {
-          // a própria pessoa já escolheu essa cartinha
-          return true;
-        }
+        // se já tiver esse e-mail na cartinha, ignora
+        if (carta.escolhidosPor.includes(email)) return true;
 
         const novaLista = [...carta.escolhidosPor, email];
 
@@ -190,10 +179,8 @@
         }
       }
 
-      // ---------- REMOVER ESCOLHA (só admin) ----------
+      // ---------- REMOVER ESCOLHA ----------
       async removerEscolha(cartaId, email) {
-        if (!this.isAdmin) return;
-
         const carta = this.cartas.find(c => c.id === cartaId);
         if (!carta) return;
 
@@ -219,7 +206,6 @@
 
       // ---------- DELETAR CARTA ----------
       deletarCarta(cartaId) {
-        if (!this.isAdmin) return;
         this.cartaIdParaDeletar = cartaId;
         this.abrirModalSenhaDelete();
       }
@@ -296,18 +282,17 @@
             <div class="max-w-7xl mx-auto relative z-10">
               <!-- Cabeçalho -->
               <div class="text-center mb-12">
-                <div class="flex items-center justify-center gap-4 mb-6">
-                  <img src="logo-zappts.png" alt="Zappts" class="h-12 md:h-16 object-contain" />
-                  <img src="bot-natal.png" alt="Bot Zappts Natal" class="h-16 md:h-20 object-contain" />
+                <div class="flex items-center justify-center gap-6 mb-6">
+                  <img src="logo-zappts.png" alt="Zappts" class="h-14 md:h-16 object-contain" />
+                  <img src="bot-natal.png" alt="Bot Zappts" class="h-16 md:h-20 object-contain" />
                 </div>
-
-                <h1 class="text-6xl md:text-7xl font-black text-white mb-6 drop-shadow-2xl" style="font-family: Arial, sans-serif; letter-spacing: 0.02em;">
+                <h1 class="text-5xl md:text-7xl font-black text-white mb-8 drop-shadow-2xl" style="font-family: Arial, sans-serif; letter-spacing: 0.02em;">
                   🎄 Natal Solidário 2025 🎄
                 </h1>
                 <p class="text-2xl md:text-3xl text-white mb-8 font-black drop-shadow-lg" style="font-family: Arial, sans-serif;">
                   Escolha uma cartinha e realize um sonho de Natal!
                 </p>
-
+                
                 <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
                   <p class="text-white font-bold text-lg">
                     ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
@@ -317,11 +302,9 @@
 
               <!-- Botões -->
               <div class="flex justify-center gap-4 mb-8 flex-wrap">
-                ${this.isAdmin ? `
-                  <button onclick="app.abrirModalNovaCarta()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                    ➕ Adicionar Nova Cartinha
-                  </button>
-                ` : ''}
+                <button onclick="app.abrirModalSenhaAdmin()" class="bg-cyan-400 hover:bg-cyan-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                  ➕ Adicionar Nova Cartinha
+                </button>
                 <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
                   ℹ️ Saiba Mais
                 </button>
@@ -332,70 +315,73 @@
 
               <!-- Grid de Cartas -->
               <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
-                ${this.cartas.length > 0 ? this.cartas.map((c, i) => `
-                  <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                    <div
-                      class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between transition-transform cursor-pointer ${c.escolhidosPor.length === 0 ? 'hover:scale-105' : 'opacity-70'}"
-                      onclick="app.abrirModalEscolha(${c.id})"
-                    >
-                      <div class="flex justify-between items-start">
-                        <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
-                        ${this.isAdmin ? `
-                          <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
-                        ` : ''}
+                ${
+                  this.cartas.length > 0
+                    ? this.cartas.map((c, i) => `
+                      <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
+                        <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
+                          <div class="flex justify-between items-start">
+                            <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                            <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                          </div>
+                          <div class="text-center flex-1 flex items-center justify-center">
+                            ${
+                              c.imagem
+                                ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
+                                : '<p class="text-5xl">😊</p>'
+                            }
+                          </div>
+                          <div class="text-center">
+                            <p class="font-black text-blue-900 text-sm">${c.nome}</p>
+                            <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                            <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
+                          </div>
+                          <div class="text-center">
+                            <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
+                              👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div class="text-center flex-1 flex items-center justify-center">
-                        ${c.imagem
-                          ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
-                          : '<p class="text-5xl">😊</p>'
-                        }
-                      </div>
-                      <div class="text-center">
-                        <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                        <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
-                        <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
-                      </div>
-                      <div class="text-center mt-1">
-                        ${c.escolhidosPor.length === 0
-                          ? '<p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">Disponível para escolha</p>'
-                          : '<p class="text-xs font-black bg-gray-700 text-white py-1 px-2 rounded-lg">Já escolhida 🎁</p>'
-                        }
-                      </div>
-                    </div>
-                  </div>
-                `).join('') : `
-                  <div class="col-span-full text-center py-20 text-white text-2xl font-bold">
-                    Nenhuma cartinha adicionada ainda! 🎄
-                  </div>
-                `}
+                    `).join('')
+                    : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
+                }
               </div>
 
               <!-- Resumo de Escolhas -->
-              ${this.cartas.some(c => c.escolhidosPor.length > 0) ? `
-                <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
-                  <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
-                  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    ${this.cartas.filter(c => c.escolhidosPor.length > 0).map(c => `
-                      <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
-                        <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
-                        <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
-                        <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
-                        <div class="space-y-1">
-                          <p class="text-xs font-bold text-blue-700">Escolhida por:</p>
-                          ${c.escolhidosPor.map(email => `
-                            <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
-                              <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
-                              ${this.isAdmin ? `
-                                <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
-                              ` : ''}
+              ${
+                this.cartas.some(c => c.escolhidosPor.length > 0)
+                  ? `
+                  <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
+                    <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      ${
+                        this.cartas
+                          .filter(c => c.escolhidosPor.length > 0)
+                          .map(c => `
+                            <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
+                              <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
+                              <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
+                              <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
+                              <div class="space-y-1">
+                                <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
+                                ${
+                                  c.escolhidosPor.map(email => `
+                                    <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
+                                      <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
+                                      <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
+                                    </div>
+                                  `).join('')
+                                }
+                              </div>
                             </div>
-                          `).join('')}
-                        </div>
-                      </div>
-                    `).join('')}
+                          `).join('')
+                      }
+                    </div>
                   </div>
-                </div>
-              ` : ''}
+                `
+                  : ''
+              }
             </div>
 
             <!-- Modais -->
@@ -406,19 +392,50 @@
         window.app = this;
       }
 
+      // ---------- MODAL SENHA ADMIN (ANTES DE NOVA CARTA) ----------
+      abrirModalSenhaAdmin() {
+        const modaisDiv = document.getElementById('modais');
+        modaisDiv.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+              <h2 class="text-2xl font-black text-blue-700 mb-4">🔒 Acesso para adicionar cartinha</h2>
+              <p class="text-gray-700 mb-6 font-semibold">Digite a senha de People:</p>
+              <input type="password" id="senhaAdmin" placeholder="Digite a senha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+              <div id="erroSenhaAdmin" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Senha incorreta!</div>
+              <div class="flex gap-3">
+                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                <button onclick="app.confirmarSenhaAdmin()" class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Confirmar</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      confirmarSenhaAdmin() {
+        const senha = document.getElementById('senhaAdmin').value;
+        const erroDiv = document.getElementById('erroSenhaAdmin');
+
+        if (senha !== this.senhaRelatorio) {
+          erroDiv.classList.remove('hidden');
+          return;
+        }
+
+        // senha ok: fecha modal de senha e abre o formulário de nova cartinha
+        document.getElementById('modais').innerHTML = '';
+        this.abrirModalNovaCarta();
+      }
+
       // ---------- MODAIS ----------
       abrirModalNovaCarta() {
-        if (!this.isAdmin) return;
-
         const modaisDiv = document.getElementById('modais');
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
               <h2 class="text-2xl font-black text-blue-700 mb-4">Adicionar Nova Cartinha 🎁</h2>
               <div class="space-y-4 mb-6">
-                <input type="text" id="nomeCarta" placeholder="Nome da criança" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                <input type="text" id="nomeCarta" placeholder="Nome da cartinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                 <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
-                <input type="text" id="desejoCarta" placeholder="Brinquedo desejado (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                 <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
               </div>
               <div class="flex gap-3">
@@ -448,46 +465,27 @@
 
       abrirModalEscolha(cartaId) {
         const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return;
-
-        const jaEscolhida = carta.escolhidosPor.length >= 1;
-
         const modaisDiv = document.getElementById('modais');
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
               <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
               <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
-                ${carta.imagem ? `<img src="${carta.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">` : '<p class="text-5xl mb-2">😊</p>'}
+                ${
+                  carta.imagem
+                    ? `<img src="${carta.imagem}" class="w-24 h-24 object-cover rounded-lg mx-auto mb-2">`
+                    : '<p class="text-5xl mb-2">😊</p>'
+                }
                 <p class="font-black text-lg text-blue-900">${carta.nome}</p>
-                <p class="text-blue-800 font-bold">${carta.idade} anos</p>
+                <p class="text-blue-800 font-bold">${carta.idade}</p>
                 <p class="text-sm text-blue-700 mt-2 font-bold">Desejo: ${carta.desejo}</p>
-                ${jaEscolhida ? `
-                  <p class="mt-3 text-red-600 font-bold text-sm">
-                    Essa cartinha já foi escolhida. Por favor, volte e selecione outra. 🙂
-                  </p>
-                ` : `
-                  <p class="mt-3 text-blue-900 font-semibold text-sm">
-                    Ao confirmar, você se compromete a comprar o presente até <strong>08/12/2025</strong>
-                    utilizando o voucher no Caju, conforme as regras da ação.
-                  </p>
-                `}
               </div>
-
-              ${jaEscolhida ? `
-                <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">
-                  Entendi
-                </button>
-              ` : `
-                <input type="email" id="emailEscolha" placeholder="Seu e-mail corporativo" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
-                <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">
-                  ⚠️ Use seu e-mail @zappts.com.br
-                </div>
-                <div class="flex gap-3">
-                  <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
-                  <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
-                </div>
-              `}
+              <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-4">
+              <div id="erroEmail" class="text-red-600 text-sm font-bold mb-4 hidden">⚠️ Email deve terminar com @zappts.com.br</div>
+              <div class="flex gap-3">
+                <button onclick="document.getElementById('modais').innerHTML = ''" class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">Cancelar</button>
+                <button onclick="app.confirmarEscolha(${cartaId})" class="flex-1 px-4 py-2 bg-cyan-400 text-blue-900 font-bold rounded-lg text-lg">Confirmar</button>
+              </div>
             </div>
           </div>
         `;
@@ -502,21 +500,6 @@
           return;
         }
 
-        const carta = this.cartas.find(c => c.id === cartaId);
-        if (!carta) return;
-
-        if (carta.escolhidosPor.length >= 1) {
-          alert('Essa cartinha já foi escolhida por outra pessoa. Escolha outra 🙂');
-          document.getElementById('modais').innerHTML = '';
-          return;
-        }
-
-        const confirmar = window.confirm(
-          'Ao confirmar, você se compromete a comprar o presente até 08/12/2025 usando o voucher no Caju. Deseja continuar?'
-        );
-
-        if (!confirmar) return;
-
         await this.escolherCarta(cartaId, email);
         document.getElementById('modais').innerHTML = '';
       }
@@ -525,136 +508,55 @@
         const modaisDiv = document.getElementById('modais');
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-3xl w-full shadow-2xl border-2 border-cyan-400 max-h-[80vh] overflow-y-auto">
-              <h2 class="text-2xl font-black text-blue-700 mb-4">🎅✨ Natal Solidário - Zappts 2025 ✨</h2>
-
-              <div class="space-y-4 text-gray-800 text-sm leading-relaxed">
+            <div class="bg-white rounded-xl p-8 max-w-2xl w-full shadow-2xl border-2 border-cyan-400 max-h-96 overflow-y-auto">
+              <h2 class="text-2xl font-black text-blue-700 mb-4">📋 Regras e Prazos</h2>
+              <div class="space-y-4 text-gray-800 text-sm md:text-base">
                 <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">Objetivo</h3>
-                  <p>
-                    Promover integração entre os Zappters e impactar positivamente a comunidade por meio de uma ação solidária,
-                    incentivando a doação de brinquedos para crianças em situação de vulnerabilidade social, com apoio financeiro
-                    da Zappts. Vamos juntos realizar os sonhos de muitas crianças!
+                  <h3 class="font-black text-blue-700 mb-2 text-lg">🎅✨ Natal Solidário - Zappts 2025 ✨</h3>
+                  <p class="font-semibold">
+                    Promover integração entre os Zappters e impactar positivamente a comunidade por meio de uma ação solidária, incentivando a doação de brinquedos
+                    para crianças em situação de vulnerabilidade social, com apoio financeiro da Zappts.
                   </p>
                 </div>
-
                 <div>
                   <h3 class="font-black text-blue-700 mb-2 text-lg">1. Descrição da Ação</h3>
-                  <p>
-                    A campanha <strong>Zappts Natal Solidário 2025</strong> visa engajar nossos colaboradores em uma ação de solidariedade,
-                    oferecendo a oportunidade de doar brinquedos para crianças em situação de vulnerabilidade, com foco no
-                    <strong>Instituto Eden Lar - São José dos Campos</strong>, em parceria com o <strong>PIT - Parque de Inovação Tecnológica</strong>.
-                  </p>
-                  <p class="mt-2">
-                    Cada participante receberá um voucher de <strong>R$ 50</strong> como saldo livre no Caju, que deverá ser usado para a compra
-                    de brinquedos.
+                  <p class="font-semibold">
+                    A campanha visa engajar nossos colaboradores na doação de brinquedos para crianças em situação de vulnerabilidade,
+                    com foco no Instituto Eden Lar - São José dos Campos, em parceria com o PIT - Parque de Inovação Tecnológica.
+                    Cada participante receberá um voucher de R$ 50 como saldo livre no Caju, para compra do brinquedo.
                   </p>
                 </div>
-
                 <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">2. Como funcionará a ação?</h3>
-
-                  <p class="font-bold mt-2">Inscrição</p>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>A inscrição será feita por meio de um formulário disponibilizado internamente.</li>
-                    <li><strong>Prazo para inscrições:</strong> até <strong>02/12/2025</strong>.</li>
-                    <li>Os colaboradores poderão se inscrever individualmente e receberão um voucher de R$ 50 no saldo livre do Caju.</li>
-                  </ul>
-
-                  <p class="font-bold mt-3">Distribuição dos vouchers</p>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>Os vouchers serão distribuídos no dia <strong>04/12/2025</strong>.</li>
-                  </ul>
-
-                  <p class="font-bold mt-3">Doação de brinquedos</p>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>Os participantes escolhem a criança nesta página, com base nas informações fornecidas pelo PIT.</li>
-                    <li>O brinquedo deve ser comprado utilizando o voucher, com entrega online para o endereço informado pelo PIT.</li>
-                  </ul>
-
-                  <p class="font-bold mt-3">Entrega dos brinquedos</p>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>Os brinquedos serão entregues ao Instituto Eden Lar pelos representantes do PIT no dia <strong>11/12/2025</strong>.</li>
-                  </ul>
-
-                  <p class="font-bold mt-3">Compartilhamento</p>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>Após a compra, o Zappter participante deve postar no canal Espaço Zappts (Google Chat):</li>
-                    <li class="ml-4">• Imagem do brinquedo comprado;</li>
-                    <li class="ml-4">• Características da criança (se disponível) e brinquedo escolhido.</li>
+                  <h3 class="font-black text-blue-700 mb-2 text-lg">2. Como funcionará?</h3>
+                  <ul class="space-y-1 ml-4 font-semibold list-disc">
+                    <li>Inscrições até 02/12/2025, via formulário interno.</li>
+                    <li>Cada participante recebe um voucher de R$ 50 no saldo livre do Caju.</li>
+                    <li>O brinquedo deve ser comprado online e enviado para o endereço do PIT.</li>
+                    <li>As crianças são escolhidas aqui na página, conforme as cartinhas cadastradas.</li>
                   </ul>
                 </div>
-
                 <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">3. Regras</h3>
-                  <ul class="list-disc ml-6 space-y-1">
-                    <li>Prazo final para inscrição: <strong>02/12/2025</strong>.</li>
-                    <li>Distribuição dos vouchers: <strong>04/12/2025</strong>.</li>
-                    <li>Prazo para compra do brinquedo: <strong>08/12/2025</strong>.</li>
-                    <li>Entrega dos brinquedos ao Instituto: <strong>11/12/2025</strong>.</li>
-                    <li>Cada cartinha pode ser escolhida apenas <strong>uma vez</strong>.</li>
+                  <h3 class="font-black text-blue-700 mb-2 text-lg">3. Prazos</h3>
+                  <ul class="space-y-1 ml-4 font-semibold list-disc">
+                    <li>Abertura das inscrições: 27/11/2025</li>
+                    <li>Prazo final para inscrição: 02/12/2025</li>
+                    <li>Distribuição dos vouchers: 04/12/2025</li>
+                    <li>Prazo para compra dos brinquedos: 08/12/2025</li>
+                    <li>Entrega dos brinquedos ao Instituto Eden Lar: 11/12/2025</li>
                   </ul>
                 </div>
-
                 <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">4. Comunicação e Divulgação</h3>
-                  <p>
-                    A divulgação da ação será feita por e-mails internos e canais de comunicação da Zappts, incentivando a adesão de todos os Zappters.
+                  <h3 class="font-black text-blue-700 mb-2 text-lg">4. Compartilhamento</h3>
+                  <p class="font-semibold">
+                    Após a compra, o Zappter participante deve postar no canal Espaço Zappts, no Google Chat:
                   </p>
-                </div>
-
-                <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">5. Cronograma</h3>
-                  <table class="w-full text-sm border border-cyan-300 rounded-lg overflow-hidden">
-                    <thead class="bg-cyan-100">
-                      <tr>
-                        <th class="px-3 py-2 text-left font-bold text-blue-800">Etapa</th>
-                        <th class="px-3 py-2 text-left font-bold text-blue-800">Data limite</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr class="border-t">
-                        <td class="px-3 py-2">Abertura das inscrições</td>
-                        <td class="px-3 py-2">27/11/2025</td>
-                      </tr>
-                      <tr class="border-t">
-                        <td class="px-3 py-2">Prazo final para inscrição</td>
-                        <td class="px-3 py-2">02/12/2025</td>
-                      </tr>
-                      <tr class="border-t">
-                        <td class="px-3 py-2">Distribuição dos vouchers</td>
-                        <td class="px-3 py-2">04/12/2025</td>
-                      </tr>
-                      <tr class="border-t">
-                        <td class="px-3 py-2">Entrega dos brinquedos</td>
-                        <td class="px-3 py-2">11/12/2025</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div>
-                  <h3 class="font-black text-blue-700 mb-2 text-lg">Inscrições do Natal Solidário</h3>
-                  <p class="mb-2">
-                    🎅✨ As inscrições do Natal Solidário foram reabertas! 🎁✨
-                  </p>
-                  <p>
-                    Sabemos que o fim do ano é corrido, então reabrimos as inscrições para garantir que ninguém fique de fora
-                    da nossa ação. Cada participante recebe um voucher de R$ 50 para doar um brinquedo ao Instituto Eden Lar.
-                  </p>
-                  <p class="mt-2">
-                    Participe sozinho ou em grupo, acumulando vouchers para brinquedos ainda mais incríveis.
-                  </p>
-                  <p class="mt-2">
-                    Preencha o formulário interno e faça parte desse movimento.  
-                    <strong>#ZapptsNatalSolidário</strong>
-                  </p>
+                  <ul class="space-y-1 ml-4 font-semibold list-disc">
+                    <li>Imagem do brinquedo comprado.</li>
+                    <li>Características da criança (quando disponíveis) e brinquedo escolhido.</li>
+                  </ul>
                 </div>
               </div>
-
-              <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">
-                Fechar
-              </button>
+              <button onclick="document.getElementById('modais').innerHTML = ''" class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">Entendi!</button>
             </div>
           </div>
         `;
