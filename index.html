@@ -50,6 +50,69 @@ class NatalSolidario {
     return res.json();
   }
 
+  async uploadImagem(file) {
+    const nomeArquivo = `${Date.now()}-${file.name}`;
+    const urlUpload = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
+
+    const res = await fetch(urlUpload, {
+      method: 'POST',
+      headers: {
+        apikey: this.supabaseKey,
+        Authorization: `Bearer ${this.supabaseKey}`,
+        'Content-Type': file.type
+      },
+      body: file
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('Erro upload imagem:', txt);
+      throw new Error(txt);
+    }
+
+    const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
+    return publicUrl;
+  }
+
+  // ---------- CARREGAR CARTAS ----------
+  async carregarCartas() {
+    try {
+      const dados = await this.db('/cartas?select=*');
+
+      this.cartas = (dados || []).map(row => ({
+        id: row.id,
+        nome: row.nome,
+        idade: row.idade,
+        desejo: row.desejo,
+        imagem: row.imagem,
+        numero_cartao: row.numero_cartao,  // Adicionando o número da cartinha
+        escolhidosPor: row.escolhidos_por || []
+      }));
+
+      // Verifica se a escolha do usuário já está salva
+      if (this.meuEmail && this.minhaCartaId) {
+        const carta = this.cartas.find(c => c.id === this.minhaCartaId);
+        const aindaExiste = carta && carta.escolhidosPor.includes(this.meuEmail);
+        if (!aindaExiste) {
+          this.meuEmail = null;
+          this.minhaCartaId = null;
+          this.numeroCartaEscolhida = null;
+          localStorage.removeItem('natalEscolha');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar cartas:', error);
+      this.cartas = [];
+    }
+
+    this.renderizar();
+  }
+
+  // ---------- VALIDAR EMAIL ----------
+  validarEmail(email) {
+    return email.endsWith('@zappts.com.br');
+  }
+
   // ---------- ADICIONAR ESCOLHA ----------
   async registrarEscolha(email, cartaId, numeroCartao) {
     try {
@@ -105,6 +168,116 @@ class NatalSolidario {
     } else {
       return false;
     }
+  }
+
+  // ---------- REMOVER ESCOLHA ----------
+  async removerEscolha(cartaId, email) {
+    const carta = this.cartas.find(c => c.id === cartaId);
+    if (!carta) return;
+
+    const novaLista = carta.escolhidosPor.filter(e => e !== email);
+
+    try {
+      await this.db(`/cartas?id=eq.${cartaId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({ escolhidos_por: novaLista })
+      });
+
+      carta.escolhidosPor = novaLista;
+
+      // Se o usuário removeu a própria escolha, limpamos o localStorage
+      if (this.meuEmail && email === this.meuEmail && cartaId === this.minhaCartaId) {
+        this.meuEmail = null;
+        this.minhaCartaId = null;
+        this.numeroCartaEscolhida = null;
+        localStorage.removeItem('natalEscolha');
+      }
+
+      this.renderizar();
+    } catch (error) {
+      console.error('Erro ao remover escolha:', error);
+      alert('Erro ao remover escolha. Veja o console.');
+    }
+  }
+
+  // ---------- DELETAR CARTA ----------
+  deletarCarta(cartaId) {
+    this.cartaIdParaDeletar = cartaId;
+    this.abrirModalSenhaDelete();
+  }
+
+  async confirmarDelete() {
+    const senha = document.getElementById('senhaDelete').value;
+    const erroDiv = document.getElementById('erroSenhaDelete');
+
+    if (senha !== this.senhaRelatorio) {
+      erroDiv.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      await this.db(`/cartas?id=eq.${this.cartaIdParaDeletar}`, {
+        method: 'DELETE'
+      });
+
+      this.cartas = this.cartas.filter(c => c.id !== this.cartaIdParaDeletar);
+
+      // Se a carta deletada era a escolha do usuário, limpamos
+      if (this.minhaCartaId === this.cartaIdParaDeletar) {
+        this.meuEmail = null;
+        this.minhaCartaId = null;
+        this.numeroCartaEscolhida = null;
+        localStorage.removeItem('natalEscolha');
+      }
+
+      document.getElementById('modais').innerHTML = '';
+      this.renderizar();
+    } catch (error) {
+      console.error('Erro ao deletar cartinha:', error);
+      alert('Erro ao excluir cartinha. Veja o console.');
+    }
+  }
+
+  // ---------- RELATÓRIO ----------
+  baixarRelatorio(senha) {
+    if (senha !== this.senhaRelatorio) return false;
+
+    let conteudo = 'Nº Cartinha,Nome,Idade,Desejo,Zappter que Escolheu,Total de Escolhas\n';
+
+    // Adiciona cada cartinha no formato correto
+    this.cartas.forEach((carta, index) => {
+      // Junta os e-mails que escolheram a cartinha
+      const emails = carta.escolhidosPor.length > 0 
+        ? carta.escolhidosPor.join('; ') 
+        : 'Nenhum Zappter escolheu';
+
+      // Conta o total de escolhas feitas para a cartinha
+      const total = carta.escolhidosPor.length;
+
+      // Adiciona a linha no arquivo CSV
+      conteudo += `${index + 1},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
+    });
+
+    // Cria o arquivo CSV
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    // Configura o link para download
+    link.setAttribute('href', url);
+    link.setAttribute('download', `natal-solidario-relatorio-${new Date().toLocaleDateString()}.csv`);
+    link.style.visibility = 'hidden';
+
+    // Inicia o download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    return true;
   }
 
   // ---------- RENDER ----------
@@ -171,5 +344,3 @@ class NatalSolidario {
     `;
   }
 }
-
-
