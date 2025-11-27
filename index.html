@@ -279,7 +279,7 @@
               `).join('')}
             </div>
 
-            <div class="max-w-7xl mx-auto relative z-10">
+            <div class="max-w-7xl mx-auto relative z-10 flex flex-col min-h-screen">
               <!-- Cabeçalho -->
               <div class="text-center mb-12">
                 <div class="flex items-center justify-center gap-6 mb-6">
@@ -293,97 +293,104 @@
                   Escolha uma cartinha e realize um sonho de Natal!
                 </p>
                 
-                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400">
+                <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400 mb-8">
                   <p class="text-white font-bold text-lg">
                     ✨ ${this.cartas.length} cartinhas • ${this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0)} escolhas realizadas
                   </p>
                 </div>
-              </div>
 
-              <!-- Botões principais (sem adicionar cartinha) -->
-              <div class="flex justify-center gap-4 mb-8 flex-wrap">
-                <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                  ℹ️ Saiba Mais
-                </button>
-                <button onclick="app.abrirModalSenha()" ${this.cartas.length === 0 ? 'disabled' : ''} class="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                  📊 Baixar Relatório
-                </button>
+                <!-- Botão principal (para todos) -->
+                <div class="flex justify-center mb-4">
+                  <button onclick="app.abrirModalInfo()" class="bg-white hover:bg-gray-100 text-blue-700 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
+                    ℹ️ Saiba Mais
+                  </button>
+                </div>
               </div>
 
               <!-- Grid de Cartas -->
-              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
-                ${
-                  this.cartas.length > 0
-                    ? this.cartas.map((c, i) => `
-                      <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                        <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
-                          <div class="flex justify-between items-start">
-                            <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
-                            <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
-                          </div>
-                          <div class="text-center flex-1 flex items-center justify-center">
-                            ${
-                              c.imagem
-                                ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
-                                : '<p class="text-5xl">😊</p>'
-                            }
-                          </div>
-                          <div class="text-center">
-                            <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                            <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
-                            <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
-                          </div>
-                          <div class="text-center">
-                            <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
-                              👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
-                            </p>
+              <div class="flex-1">
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
+                  ${
+                    this.cartas.length > 0
+                      ? this.cartas.map((c, i) => `
+                        <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
+                          <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
+                            <div class="flex justify-between items-start">
+                              <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                              <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})" class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg">✕</button>
+                            </div>
+                            <div class="text-center flex-1 flex items-center justify-center">
+                              ${
+                                c.imagem
+                                  ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
+                                  : '<p class="text-5xl">😊</p>'
+                              }
+                            </div>
+                            <div class="text-center">
+                              <p class="font-black text-blue-900 text-sm">${c.nome}</p>
+                              <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                              <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
+                            </div>
+                            <div class="text-center">
+                              <p class="text-xs font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
+                                👥 ${c.escolhidosPor.length} ${c.escolhidosPor.length === 1 ? 'escolheu' : 'escolheram'}
+                              </p>
+                            </div>
                           </div>
                         </div>
+                      `).join('')
+                      : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
+                  }
+                </div>
+
+                <!-- Resumo de Escolhas -->
+                ${
+                  this.cartas.some(c => c.escolhidosPor.length > 0)
+                    ? `
+                    <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400 mb-8">
+                      <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
+                      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${
+                          this.cartas
+                            .filter(c => c.escolhidosPor.length > 0)
+                            .map(c => `
+                              <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
+                                <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
+                                <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
+                                <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
+                                <div class="space-y-1">
+                                  <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
+                                  ${
+                                    c.escolhidosPor.map(email => `
+                                      <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
+                                        <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
+                                        <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
+                                      </div>
+                                    `).join('')
+                                  }
+                                </div>
+                              </div>
+                            `).join('')
+                        }
                       </div>
-                    `).join('')
-                    : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
+                    </div>
+                  `
+                    : ''
                 }
               </div>
 
-              <!-- Resumo de Escolhas -->
-              ${
-                this.cartas.some(c => c.escolhidosPor.length > 0)
-                  ? `
-                  <div class="bg-white bg-opacity-95 rounded-xl p-6 shadow-2xl border-2 border-cyan-400">
-                    <h2 class="text-3xl font-black text-blue-700 mb-4">📋 Escolhas Realizadas</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      ${
-                        this.cartas
-                          .filter(c => c.escolhidosPor.length > 0)
-                          .map(c => `
-                            <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
-                              <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
-                              <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
-                              <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
-                              <div class="space-y-1">
-                                <p class="text-xs font-bold text-blue-700">Escolhido por:</p>
-                                ${
-                                  c.escolhidosPor.map(email => `
-                                    <div class="flex justify-between items-center bg-white p-2 rounded border border-cyan-300">
-                                      <span class="text-sm text-gray-700 font-semibold">👤 ${email}</span>
-                                      <button onclick="app.removerEscolha(${c.id}, '${email}')" class="text-blue-600 hover:text-blue-800 font-bold">✕</button>
-                                    </div>
-                                  `).join('')
-                                }
-                              </div>
-                            </div>
-                          `).join('')
-                      }
-                    </div>
-                  </div>
-                `
-                  : ''
-              }
+              <!-- Ações administrativas, discretas, no rodapé à direita -->
+              <div class="mt-4 flex justify-end gap-6 pr-4 text-sm opacity-70 hover:opacity-100 transition-all">
+                <button 
+                  onclick="app.abrirModalSenhaAdmin()" 
+                  class="text-cyan-300 hover:text-cyan-100 font-semibold flex items-center gap-1">
+                    ➕ Adicionar cartinha
+                </button>
 
-              <!-- Botão discreto para adicionar cartinha (admin, com senha) -->
-              <div class="mt-10 flex justify-end">
-                <button onclick="app.abrirModalSenhaAdmin()" class="bg-cyan-500/40 hover:bg-cyan-500/70 text-blue-900 text-xs md:text-sm font-semibold px-4 py-2 rounded-full shadow-sm flex items-center gap-2">
-                  ➕ Adicionar cartinha
+                <button 
+                  onclick="app.abrirModalSenha()" 
+                  class="text-green-300 hover:text-green-100 font-semibold flex items-center gap-1">
+                    📄 Baixar relatório
                 </button>
               </div>
             </div>
@@ -424,7 +431,6 @@
           return;
         }
 
-        // senha ok: fecha modal de senha e abre o formulário de nova cartinha
         document.getElementById('modais').innerHTML = '';
         this.abrirModalNovaCarta();
       }
@@ -633,3 +639,4 @@
   </script>
 </body>
 </html>
+
