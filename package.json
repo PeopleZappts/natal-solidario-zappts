@@ -1,0 +1,10 @@
+{
+  "name": "natal-solidario-zappts",
+  "version": "1.0.0",
+  "description": "Natal Solidário Zappts 2025",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo 'build'",
+    "start": "echo 'start'"
+  }
+}
