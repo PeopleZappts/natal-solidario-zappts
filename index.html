@@ -42,7 +42,7 @@
 
         // CONFIG SUPABASE
         this.supabaseUrl = 'https://qykyaafhqaatlefozrvq.supabase.co';
-        this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
+        this.supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF5a3lhYWZocWFhdGxlZm96cnZxIiwicm9zZSI6ImFub24iLCJpYXQiOjE3NjQyMjEwNzMsImV4cCI6MjA3OTc5NzA3M30.Ik6O0Lm0nsYLkyXAhLQaA7qicTXhLDD4X1Bj_2Fav4Q';
         this.bucket = 'cartinhas';
 
         this.carregarCartas();
@@ -104,6 +104,7 @@
             idade: row.idade,
             desejo: row.desejo,
             imagem: row.imagem,
+            numero_cartao: row.numero_cartao ?? null,
             escolhidosPor: row.escolhidos_por || []
           }));
 
@@ -131,7 +132,7 @@
       }
 
       // ---------- ADICIONAR CARTA ----------
-      async adicionarCarta(nome, idade, desejo, arquivoImagem) {
+      async adicionarCarta(nome, idade, desejo, numeroCartao, arquivoImagem) {
         try {
           let imagemUrl = null;
 
@@ -139,11 +140,13 @@
             imagemUrl = await this.uploadImagem(arquivoImagem);
           }
 
+          const numeroLimpo = (numeroCartao || '').trim();
           const corpo = {
             nome: nome.trim(),
             idade: idade.trim(),
             desejo: (desejo || '').trim() || 'Brinquedo a escolher',
             imagem: imagemUrl,
+            numero_cartao: numeroLimpo ? parseInt(numeroLimpo, 10) : null,
             escolhidos_por: []
           };
 
@@ -164,6 +167,7 @@
             idade: salva.idade,
             desejo: salva.desejo,
             imagem: salva.imagem,
+            numero_cartao: salva.numero_cartao ?? (numeroLimpo ? parseInt(numeroLimpo, 10) : null),
             escolhidosPor: salva.escolhidos_por || []
           });
 
@@ -176,20 +180,43 @@
         }
       }
 
+      // ---------- REGISTRAR ESCOLHA NA TABELA "escolhas" ----------
+      async registrarEscolha(email, carta) {
+        try {
+          const corpo = {
+            email,
+            cartinha_id: carta.id,
+            numero_cartao: carta.numero_cartao ?? null
+          };
+
+          await this.db('/escolhas', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal'
+            },
+            body: JSON.stringify(corpo)
+          });
+        } catch (error) {
+          console.error('Erro ao registrar na tabela "escolhas":', error);
+          // Não trava o fluxo se o log falhar
+        }
+      }
+
       // ---------- ESCOLHER CARTA ----------
       async escolherCarta(cartaId, email) {
         const carta = this.cartas.find(c => c.id === cartaId);
         if (!carta) return false;
 
-        // NOVA REGRA:
-        // - Uma cartinha só pode ter 1 e-mail
-        // - O mesmo e-mail pode aparecer em várias cartinhas
+        // Regra: UMA pessoa por cartinha.
+        // Se já tem alguém diferente desse e-mail, bloqueia.
         if (carta.escolhidosPor.length > 0 && !carta.escolhidosPor.includes(email)) {
-          alert('Esta cartinha já foi escolhida por outra pessoa.');
+          alert('Essa cartinha já tem um Zappter responsável. Escolha outra 💙');
           return false;
         }
 
-        // Se já tiver esse e-mail na cartinha, só salva no localStorage e segue
+        // Se a cartinha já está registrada com esse e-mail,
+        // só atualiza o contexto local e segue.
         if (carta.escolhidosPor.includes(email)) {
           this.meuEmail = email;
           this.minhaCartaId = cartaId;
@@ -198,10 +225,11 @@
           return true;
         }
 
-        // Aqui é porque ninguém escolheu ainda
-        const novaLista = [email];
+        // Senão, é a primeira escolha dessa cartinha.
+        const novaLista = [email]; // só UMA pessoa nessa cartinha
 
         try {
+          // Atualiza a cartinha com o e-mail no array escolhidos_por
           await this.db(`/cartas?id=eq.${cartaId}`, {
             method: 'PATCH',
             headers: {
@@ -212,6 +240,9 @@
           });
 
           carta.escolhidosPor = novaLista;
+
+          // Registra também na tabela "escolhas"
+          await this.registrarEscolha(email, carta);
 
           // Salva contexto do usuário
           this.meuEmail = email;
@@ -306,7 +337,8 @@
         this.cartas.forEach((carta, index) => {
           const emails = carta.escolhidosPor.join('; ');
           const total = carta.escolhidosPor.length;
-          conteudo += `${index + 1},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
+          const numero = carta.numero_cartao != null ? carta.numero_cartao : (index + 1);
+          conteudo += `${numero},"${carta.nome}",${carta.idade},"${carta.desejo}","${emails}",${total}\n`;
         });
 
         const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
@@ -332,6 +364,12 @@
         const totalEscolhas = this.cartas.reduce((s, c) => s + c.escolhidosPor.length, 0);
         const minhaCarta = this.minhaCartaId
           ? this.cartas.find(c => c.id === this.minhaCartaId)
+          : null;
+
+        const numeroMinhaCarta = minhaCarta
+          ? (minhaCarta.numero_cartao != null
+              ? minhaCarta.numero_cartao
+              : this.cartas.indexOf(minhaCarta) + 1)
           : null;
 
         app.innerHTML = `
@@ -374,9 +412,8 @@
                     ? `
                       <div class="max-w-xl mx-auto bg-white bg-opacity-95 rounded-xl p-4 border-2 border-emerald-400 mb-6 text-left">
                         <p class="text-xs font-bold text-emerald-700 mb-1 uppercase tracking-wide">Sua participação</p>
-                        <p class="text-sm
-                        font-semibold text-gray-800 mb-2">
-                          Você escolheu a <span class="font-black text-blue-700">Cartinha #${this.cartas.indexOf(minhaCarta) + 1}</span>.
+                        <p class="text-sm font-semibold text-gray-800 mb-2">
+                          Você escolheu a <span class="font-black text-blue-700">Cartinha #${numeroMinhaCarta}</span>.
                         </p>
                         <p class="text-sm text-gray-700"><span class="font-bold">Criança:</span> ${minhaCarta.nome}, ${minhaCarta.idade} anos</p>
                         <p class="text-sm text-gray-700"><span class="font-bold">Desejo:</span> ${minhaCarta.desejo}</p>
@@ -399,12 +436,14 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
                   ${
                     this.cartas.length > 0
-                      ? this.cartas.map((c, i) => `
+                      ? this.cartas.map((c, i) => {
+                          const numeroExibido = c.numero_cartao != null ? c.numero_cartao : (i + 1);
+                          return `
                         <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
                           <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between hover:scale-105 transition-transform cursor-pointer" onclick="app.abrirModalEscolha(${c.id})">
                             <div class="flex justify-between items-start">
                               <div class="flex flex-col gap-1">
-                                <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${i + 1}</span>
+                                <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">#${numeroExibido}</span>
                                 ${
                                   this.minhaCartaId === c.id && this.meuEmail
                                     ? `<span class="inline-block bg-white text-blue-800 px-2 py-1 rounded-full text-[10px] font-black border border-blue-800">Sua cartinha 💙</span>`
@@ -432,7 +471,8 @@
                             </div>
                           </div>
                         </div>
-                      `).join('')
+                          `;
+                        }).join('')
                       : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
                   }
                 </div>
@@ -447,9 +487,11 @@
                         ${
                           this.cartas
                             .filter(c => c.escolhidosPor.length > 0)
-                            .map(c => `
+                            .map(c => {
+                              const num = c.numero_cartao != null ? c.numero_cartao : (this.cartas.indexOf(c) + 1);
+                              return `
                               <div class="bg-gradient-to-br from-cyan-50 to-blue-50 p-4 rounded-lg border-2 border-cyan-400">
-                                <p class="font-black text-blue-700 mb-2">Cartinha #${this.cartas.indexOf(c) + 1}</p>
+                                <p class="font-black text-blue-700 mb-2">Cartinha #${num}</p>
                                 <p class="text-gray-800 font-bold">${c.nome}, ${c.idade} anos</p>
                                 <p class="text-sm text-gray-600 mb-3 font-semibold">Desejo: ${c.desejo}</p>
                                 <div class="space-y-1">
@@ -464,7 +506,8 @@
                                   }
                                 </div>
                               </div>
-                            `).join('')
+                              `;
+                            }).join('')
                         }
                       </div>
                     </div>
@@ -539,6 +582,7 @@
               <div class="space-y-4 mb-6">
                 <input type="text" id="nomeCarta" placeholder="Nome da cartinha" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                 <input type="text" id="idadeCarta" placeholder="Idade" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
+                <input type="text" id="numeroCarta" placeholder="Número da cartinha (impresso no cartão)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                 <input type="text" id="desejoCarta" placeholder="O que deseja (opcional)" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold">
                 <input type="file" id="imagemCarta" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
               </div>
@@ -554,6 +598,7 @@
       async confirmarNovaCarta() {
         const nome = document.getElementById('nomeCarta').value;
         const idade = document.getElementById('idadeCarta').value;
+        const numeroCarta = document.getElementById('numeroCarta').value;
         const desejo = document.getElementById('desejoCarta').value;
         const imagemInput = document.getElementById('imagemCarta');
         const arquivo = imagemInput.files[0] || null;
@@ -563,7 +608,7 @@
           return;
         }
 
-        await this.adicionarCarta(nome, idade, desejo, arquivo);
+        await this.adicionarCarta(nome, idade, desejo, numeroCarta, arquivo);
         document.getElementById('modais').innerHTML = '';
       }
 
@@ -571,10 +616,15 @@
         const carta = this.cartas.find(c => c.id === cartaId);
         const modaisDiv = document.getElementById('modais');
 
+        const numero = carta.numero_cartao != null
+          ? carta.numero_cartao
+          : this.cartas.indexOf(carta) + 1;
+
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400 max-h-[90vh] overflow-y-auto">
-              <h2 class="text-2xl font-black text-blue-700 mb-4">Escolher uma Cartinha 🎁</h2>
+              <h2 class="text-2xl font-black text-blue-700 mb-1">Escolher a Cartinha #${numero} 🎁</h2>
+              <p class="text-xs text-gray-500 mb-3 font-semibold">Número impresso na cartinha física: ${numero}</p>
               <div class="bg-gradient-to-br from-emerald-100 to-cyan-100 p-4 rounded-lg mb-6 text-center border-2 border-emerald-400">
                 ${
                   carta.imagem
@@ -587,7 +637,7 @@
               </div>
 
               <p class="text-xs text-gray-600 font-semibold mb-2">
-                Cada cartinha só pode ser escolhida por <span class="font-bold">uma</span> pessoa.
+                Cada cartinha pode ser escolhida por apenas <span class="font-bold">uma pessoa</span>.
               </p>
 
               <input type="email" id="emailEscolha" placeholder="seu.email@zappts.com.br" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg focus:outline-none focus:border-cyan-600 font-semibold mb-3">
@@ -648,10 +698,20 @@
           return;
         }
 
-        // (regra antiga de "um email só pode escolher uma cartinha" foi removida)
+        // Regra: UMA pessoa por cartinha (já checada dentro de escolherCarta também)
+        const carta = this.cartas.find(c => c.id === cartaId);
+        if (!carta) return;
 
-        await this.escolherCarta(cartaId, email);
-        document.getElementById('modais').innerHTML = '';
+        if (carta.escolhidosPor.length > 0 && !carta.escolhidosPor.includes(email)) {
+          erroEscolha.textContent = '⚠️ Esta cartinha já tem um Zappter responsável. Escolha outra cartinha, por favor. 💙';
+          erroEscolha.classList.remove('hidden');
+          return;
+        }
+
+        const ok = await this.escolherCarta(cartaId, email);
+        if (ok) {
+          document.getElementById('modais').innerHTML = '';
+        }
       }
 
       abrirModalInfo() {
