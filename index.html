@@ -50,30 +50,6 @@ class NatalSolidario {
     return res.json();
   }
 
-  async uploadImagem(file) {
-    const nomeArquivo = `${Date.now()}-${file.name}`;
-    const urlUpload = `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
-
-    const res = await fetch(urlUpload, {
-      method: 'POST',
-      headers: {
-        apikey: this.supabaseKey,
-        Authorization: `Bearer ${this.supabaseKey}`,
-        'Content-Type': file.type
-      },
-      body: file
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('Erro upload imagem:', txt);
-      throw new Error(txt);
-    }
-
-    const publicUrl = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${encodeURIComponent(nomeArquivo)}`;
-    return publicUrl;
-  }
-
   // ---------- CARREGAR CARTAS ----------
   async carregarCartas() {
     try {
@@ -119,8 +95,14 @@ class NatalSolidario {
       const carta = this.cartas.find(c => c.id === cartaId);
       if (!carta) return false;
 
+      // Se a cartinha já foi escolhida, não permitir outra escolha
+      if (carta.escolhidosPor.length > 0) {
+        console.log('Esta cartinha já foi escolhida!');
+        return false; // Não permitir escolha duplicada
+      }
+
       // Atualiza o campo escolhidos_por na tabela 'cartas'
-      const novaLista = [...carta.escolhidosPor, email]; // Adiciona o e-mail ao array
+      const novaLista = [email]; // Adiciona o e-mail ao array (só permite 1 e-mail por cartinha)
 
       // Atualiza a cartinha no banco de dados
       const dados = await this.db(`/cartas?id=eq.${cartaId}`, {
@@ -158,9 +140,10 @@ class NatalSolidario {
     const carta = this.cartas.find(c => c.id === cartaId);
     if (!carta) return false;
 
-    // Verifica se a cartinha já foi escolhida
-    if (carta.escolhidosPor.length > 0 && !carta.escolhidosPor.includes(email)) {
-      return false;
+    // Se a cartinha já foi escolhida, não permitir que outro usuário escolha
+    if (carta.escolhidosPor.length > 0) {
+      alert("Esta cartinha já foi escolhida!");
+      return false; // Impede outra pessoa de escolher a cartinha
     }
 
     // Registra a escolha da cartinha
