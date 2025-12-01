@@ -623,3 +623,4 @@ export default function NatalSolidario() {
     </div>
   );
 }
+
