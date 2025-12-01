@@ -741,9 +741,14 @@
         const file = input.files[0];
         const text = await file.text();
 
-        // Parse CSV simples
-        const linhas = text.split('\\n');
-        const cabecalho = linhas[0].split(',').map(c => c.trim().toUpperCase());
+        // Parse CSV mais robusto
+        const linhas = text.split(/\r?\n/); // Lida com quebra de linha Windows/Unix
+
+        // Tenta detectar separador (vírgula ou ponto e vírgula)
+        const primeiraLinha = linhas[0];
+        const separador = primeiraLinha.includes(';') ? ';' : ',';
+
+        const cabecalho = primeiraLinha.split(separador).map(c => c.trim().toUpperCase().replace(/^[\uFEFF]/, '')); // Remove BOM e espaços
 
         const idxCod = cabecalho.indexOf('COD');
         const idxIdade = cabecalho.indexOf('IDADE');
@@ -761,7 +766,8 @@
           if (!linha) continue;
 
           // Lida com CSV que pode ter virgulas dentro de aspas (simplificado)
-          const colunas = linha.split(',');
+          // Lida com CSV que pode ter virgulas dentro de aspas (simplificado)
+          const colunas = linha.split(separador);
 
           const cod = colunas[idxCod]?.trim();
           const idade = colunas[idxIdade]?.trim();
