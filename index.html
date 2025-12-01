@@ -251,6 +251,14 @@
           return;
         }
 
+        // Verifica se o email já participou
+        const jaParticipou = this.cartas.some(c => (c.escolhidosPor || []).includes(email));
+        if (jaParticipou) {
+          erroDiv.textContent = 'Este email já escolheu uma cartinha! Se precisar trocar, fale com People.';
+          erroDiv.classList.remove('hidden');
+          return;
+        }
+
         // Cartas "disponíveis" para o sorteio na interface (sem ninguém no array escolhidosPor)
         const disponiveis = this.cartas.filter(c => (c.escolhidosPor || []).length === 0);
 
@@ -330,7 +338,8 @@
         };
 
         try {
-          await fetch('https://zpt-dev.zappts.com.br/webhook/natal-zappts-2025', {
+          // Usa o proxy do Vercel para evitar erro de CORS
+          await fetch('/api/webhook', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -483,7 +492,7 @@
                 <div class="flex justify-center mb-4 gap-4 flex-wrap">
                   <button onclick="app.abrirModalSorteio()"
                     class="bg-emerald-400 hover:bg-emerald-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                    🎁 Escolher Criança
+                    🎁 Escolher Cartinha
                   </button>
 
                   <button onclick="app.abrirModalInfo()"
@@ -686,7 +695,7 @@
                     <li>Abertura das inscrições: 27/11/2025</li>
                     <li>Prazo final para inscrição: 02/12/2025</li>
                     <li>Distribuição dos vouchers: 04/12/2025</li>
-                    <li>Prazo para compra dos brinquedos: 08/12/2025</li>
+                    <li>Prazo de entrega dos brinquedos: 08/12/2025</li>
                     <li>Entrega dos brinquedos ao Instituto Eden Lar: 11/12/2025</li>
                   </ul>
                 </div>
