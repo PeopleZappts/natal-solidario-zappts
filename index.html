@@ -48,6 +48,7 @@
       // ---------- SUPABASE REST ----------
       async db(path, options = {}) {
         const res = await fetch(`${this.supabaseUrl}/rest/v1${path}`, {
+          cache: 'no-store', // GARANTE QUE NÃO PEGUE DO CACHE
           ...options,
           headers: {
             apikey: this.supabaseKey,
@@ -273,7 +274,7 @@
           const novosEscolhidos = [...(sorteada.escolhidosPor || []), email];
 
           // 1. Atualiza no Supabase
-          await this.db(`/cartas?id=eq.${sorteada.id}`, {
+          const retornoSupabase = await this.db(`/cartas?id=eq.${sorteada.id}`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -283,6 +284,11 @@
               escolhidos_por: novosEscolhidos
             })
           });
+
+          // Verifica se realmente salvou (se RLS bloquear, pode retornar vazio)
+          if (Array.isArray(retornoSupabase) && retornoSupabase.length === 0) {
+            throw new Error('Permissão negada pelo banco de dados (RLS). A escolha não foi salva.');
+          }
 
           // 2. Atualiza em memória
           sorteada.escolhidosPor = novosEscolhidos;
