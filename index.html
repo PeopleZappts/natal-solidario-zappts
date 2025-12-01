@@ -515,10 +515,14 @@
                                   #${i + 1}${c.numero_cartao ? ` • código ${c.numero_cartao}` : ''}
                                 </span>
                               </div>
-                              <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})"
-                                class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg text-xs">
-                                ✕
-                              </button>
+                                <button onclick="event.stopPropagation(); app.editarCarta(${c.id})"
+                                  class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg text-xs mr-2">
+                                  ✏️
+                                </button>
+                                <button onclick="event.stopPropagation(); app.deletarCarta(${c.id})"
+                                  class="text-blue-800 hover:text-blue-950 bg-white rounded-full p-1 shadow-lg text-xs">
+                                  ✕
+                                </button>
                             </div>
                             <div class="text-center flex-1 flex items-center justify-center">
                               ${c.imagem
@@ -547,7 +551,13 @@
               <!-- Ações administrativas discretas -->
               <div class="mt-4 flex justify-end gap-6 pr-4 text-sm opacity-70 hover:opacity-100 transition-all">
                 <button 
-                  onclick="app.abrirModalSenhaAdmin()" 
+                  onclick="app.abrirModalSenhaAdmin('importar')" 
+                  class="text-cyan-300 hover:text-cyan-100 font-semibold flex items-center gap-1">
+                    📂 Importar CSV
+                </button>
+
+                <button 
+                  onclick="app.abrirModalSenhaAdmin('adicionar')" 
                   class="text-cyan-300 hover:text-cyan-100 font-semibold flex items-center gap-1">
                     ➕ Adicionar cartinha
                 </button>
@@ -568,8 +578,92 @@
         window.app = this;
       }
 
+      // ---------- EDITAR CARTA (admin) ----------
+      editarCarta(cartaId) {
+        this.cartaEmEdicao = this.cartas.find(c => c.id === cartaId);
+        if (!this.cartaEmEdicao) return;
+        this.abrirModalSenhaAdmin('editar');
+      }
+
+      abrirModalEditarCarta() {
+        const c = this.cartaEmEdicao;
+        const modaisDiv = document.getElementById('modais');
+        modaisDiv.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+              <h2 class="text-2xl font-black text-blue-700 mb-4">✏️ Editar Cartinha</h2>
+              <div class="space-y-4 mb-6">
+                <input type="text" id="editNome" value="${c.nome}" placeholder="Nome"
+                  class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg font-semibold">
+                <input type="text" id="editIdade" value="${c.idade}" placeholder="Idade"
+                  class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg font-semibold">
+                <input type="text" id="editNumero" value="${c.numero_cartao || ''}" placeholder="Código"
+                  class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg font-semibold">
+                <input type="text" id="editDesejo" value="${c.desejo}" placeholder="Desejo"
+                  class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg font-semibold">
+                
+                <div class="text-xs text-gray-500">Imagem atual: ${c.imagem ? 'Sim' : 'Não'}</div>
+                <input type="file" id="editImagem" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
+              </div>
+              <div class="flex gap-3">
+                <button onclick="document.getElementById('modais').innerHTML = ''"
+                  class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">
+                  Cancelar
+                </button>
+                <button onclick="app.confirmarEdicao()"
+                  class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      async confirmarEdicao() {
+        const nome = document.getElementById('editNome').value;
+        const idade = document.getElementById('editIdade').value;
+        const numero = document.getElementById('editNumero').value;
+        const desejo = document.getElementById('editDesejo').value;
+        const imagemInput = document.getElementById('editImagem');
+
+        let imagemUrl = this.cartaEmEdicao.imagem;
+
+        if (imagemInput.files && imagemInput.files[0]) {
+          imagemUrl = await this.uploadImagem(imagemInput.files[0]);
+        }
+
+        try {
+          await this.db(`/cartas?id=eq.${this.cartaEmEdicao.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              nome,
+              idade,
+              numero_cartao: numero ? Number(numero) : null,
+              desejo,
+              imagem: imagemUrl
+            })
+          });
+
+          // Atualiza local
+          this.cartaEmEdicao.nome = nome;
+          this.cartaEmEdicao.idade = idade;
+          this.cartaEmEdicao.numero_cartao = numero;
+          this.cartaEmEdicao.desejo = desejo;
+          this.cartaEmEdicao.imagem = imagemUrl;
+
+          document.getElementById('modais').innerHTML = '';
+          this.renderizar();
+        } catch (error) {
+          console.error('Erro ao editar:', error);
+          alert('Erro ao salvar edição.');
+        }
+      }
+
       // ---------- MODAIS AUXILIARES ----------
-      abrirModalSenhaAdmin() {
+      abrirModalSenhaAdmin(acao = 'adicionar') {
+        this.acaoAdmin = acao;
         const modaisDiv = document.getElementById('modais');
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
@@ -604,7 +698,84 @@
         }
 
         document.getElementById('modais').innerHTML = '';
-        this.abrirModalNovaCarta();
+
+        if (this.acaoAdmin === 'importar') {
+          this.abrirModalImportarCSV();
+        } else if (this.acaoAdmin === 'editar') {
+          this.abrirModalEditarCarta();
+        } else {
+          this.abrirModalNovaCarta();
+        }
+      }
+
+      abrirModalImportarCSV() {
+        const modaisDiv = document.getElementById('modais');
+        modaisDiv.innerHTML = `
+          <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+              <h2 class="text-2xl font-black text-blue-700 mb-4">📂 Importar CSV</h2>
+              <p class="text-sm text-gray-600 mb-4">
+                O arquivo deve ter as colunas: <strong>COD, IDADE, GENERO</strong>.
+              </p>
+              <input type="file" id="arquivoCSV" accept=".csv" class="w-full border-2 border-cyan-300 rounded-lg p-2 mb-4">
+              
+              <div class="flex gap-3">
+                <button onclick="document.getElementById('modais').innerHTML = ''"
+                  class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">
+                  Cancelar
+                </button>
+                <button onclick="app.confirmarImportacaoCSV()"
+                  class="flex-1 px-4 py-2 bg-blue-600 text-white font-bold rounded-lg text-lg">
+                  Importar
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      async confirmarImportacaoCSV() {
+        const input = document.getElementById('arquivoCSV');
+        if (!input.files || !input.files[0]) return;
+
+        const file = input.files[0];
+        const text = await file.text();
+
+        // Parse CSV simples
+        const linhas = text.split('\\n');
+        const cabecalho = linhas[0].split(',').map(c => c.trim().toUpperCase());
+
+        const idxCod = cabecalho.indexOf('COD');
+        const idxIdade = cabecalho.indexOf('IDADE');
+        const idxGenero = cabecalho.indexOf('GENERO');
+
+        if (idxCod === -1 || idxIdade === -1 || idxGenero === -1) {
+          alert('CSV inválido! Verifique as colunas: COD, IDADE, GENERO');
+          return;
+        }
+
+        let sucesso = 0;
+
+        for (let i = 1; i < linhas.length; i++) {
+          const linha = linhas[i].trim();
+          if (!linha) continue;
+
+          // Lida com CSV que pode ter virgulas dentro de aspas (simplificado)
+          const colunas = linha.split(',');
+
+          const cod = colunas[idxCod]?.trim();
+          const idade = colunas[idxIdade]?.trim();
+          const genero = colunas[idxGenero]?.trim();
+
+          if (cod && idade && genero) {
+            // Usa Genero como Nome provisório
+            await this.adicionarCarta(genero, idade, 'Brinquedo a escolher', cod, null);
+            sucesso++;
+          }
+        }
+
+        alert(`${sucesso} cartinhas importadas com sucesso!`);
+        document.getElementById('modais').innerHTML = '';
       }
 
       abrirModalNovaCarta() {
