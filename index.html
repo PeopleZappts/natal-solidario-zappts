@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,14 +8,23 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @keyframes twinkle {
-      0%, 100% { opacity: 0.3; }
-      50% { opacity: 1; }
+
+      0%,
+      100% {
+        opacity: 0.3;
+      }
+
+      50% {
+        opacity: 1;
+      }
     }
+
     .star {
       animation: twinkle 3s infinite;
     }
   </style>
 </head>
+
 <body>
   <div id="app"></div>
 
@@ -197,8 +207,8 @@
                   class="flex-1 px-4 py-2 bg-gray-400 text-white font-bold rounded-lg text-lg">
                   Cancelar
                 </button>
-                <button onclick="app.confirmarSorteio()"
-                  class="flex-1 px-4 py-2 bg-emerald-400 text-blue-900 font-bold rounded-lg text-lg">
+                <button id="btnConfirmarSorteio" onclick="app.confirmarSorteio()"
+                  class="flex-1 px-4 py-2 bg-emerald-400 text-blue-900 font-bold rounded-lg text-lg disabled:opacity-50 disabled:cursor-not-allowed">
                   Sortear criança 🎁
                 </button>
               </div>
@@ -249,26 +259,56 @@
           return;
         }
 
-        // Sorteia uma criança aleatória
-        const sorteada = disponiveis[Math.floor(Math.random() * disponiveis.length)];
+        // Feedback visual de carregamento
+        const btnConfirmar = document.getElementById('btnConfirmarSorteio');
+        const textoOriginal = btnConfirmar.innerText;
+        btnConfirmar.disabled = true;
+        btnConfirmar.innerText = 'Sorteando... ⏳';
 
-        // Atualiza só em memória para aparecer na interface
-        if (!Array.isArray(sorteada.escolhidosPor)) sorteada.escolhidosPor = [];
-        sorteada.escolhidosPor.push(email);
+        try {
+          // Sorteia uma criança aleatória
+          const sorteada = disponiveis[Math.floor(Math.random() * disponiveis.length)];
 
-        // Guarda contexto do último sorteio
-        this.ultimaEscolha = {
-          participanteNome: nome,
-          participanteEmail: email,
-          carta: sorteada
-        };
+          // Prepara o novo array de escolhidos
+          const novosEscolhidos = [...(sorteada.escolhidosPor || []), email];
 
-        // Dispara webhook para o n8n / backend
-        this.enviarWebhook(nome, email, sorteada);
+          // 1. Atualiza no Supabase
+          await this.db(`/cartas?id=eq.${sorteada.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Prefer: 'return=representation'
+            },
+            body: JSON.stringify({
+              escolhidos_por: novosEscolhidos
+            })
+          });
 
-        // Fecha modal e re-render
-        document.getElementById('modais').innerHTML = '';
-        this.renderizar();
+          // 2. Atualiza em memória
+          sorteada.escolhidosPor = novosEscolhidos;
+
+          // Guarda contexto do último sorteio
+          this.ultimaEscolha = {
+            participanteNome: nome,
+            participanteEmail: email,
+            carta: sorteada
+          };
+
+          // 3. Dispara webhook para o n8n / backend
+          // Não vamos esperar o webhook para não travar a UI se der erro nele
+          this.enviarWebhook(nome, email, sorteada);
+
+          // Fecha modal e re-render
+          document.getElementById('modais').innerHTML = '';
+          this.renderizar();
+
+        } catch (error) {
+          console.error('Erro ao salvar sorteio:', error);
+          erroDiv.textContent = 'Erro ao salvar sua escolha. Tente novamente.';
+          erroDiv.classList.remove('hidden');
+          btnConfirmar.disabled = false;
+          btnConfirmar.innerText = textoOriginal;
+        }
       }
 
       async enviarWebhook(nome, email, carta) {
@@ -413,9 +453,8 @@
                   </div>
                 </div>
 
-                ${
-                  ultimo
-                    ? `
+                ${ultimo
+            ? `
                       <div class="max-w-xl mx-auto bg-white bg-opacity-95 rounded-xl p-4 border-2 border-emerald-400 mb-4 text-left">
                         <p class="text-xs font-bold text-emerald-700 mb-1 uppercase tracking-wide">Sua criança sorteada</p>
                         <p class="text-sm font-semibold text-gray-800 mb-2">
@@ -430,8 +469,8 @@
                         <p class="text-xs text-gray-500 mt-2">As orientações completas vão chegar pelos canais internos de People.</p>
                       </div>
                     `
-                    : ''
-                }
+            : ''
+          }
 
                 <!-- Botões principais -->
                 <div class="flex justify-center mb-4 gap-4 flex-wrap">
@@ -450,9 +489,8 @@
               <!-- Grid de Cartas (somente visual) -->
               <div class="flex-1">
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
-                  ${
-                    this.cartas.length > 0
-                      ? this.cartas.map((c, i) => `
+                  ${this.cartas.length > 0
+            ? this.cartas.map((c, i) => `
                         <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
                           <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between">
                             <div class="flex justify-between items-start">
@@ -467,11 +505,10 @@
                               </button>
                             </div>
                             <div class="text-center flex-1 flex items-center justify-center">
-                              ${
-                                c.imagem
-                                  ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
-                                  : '<p class="text-5xl">😊</p>'
-                              }
+                              ${c.imagem
+                ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
+                : '<p class="text-5xl">😊</p>'
+              }
                             </div>
                             <div class="text-center">
                               <p class="font-black text-blue-900 text-sm">${c.nome}</p>
@@ -486,8 +523,8 @@
                           </div>
                         </div>
                       `).join('')
-                      : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
-                  }
+            : '<div class="col-span-full text-center py-20 text-white text-2xl font-bold">Nenhuma cartinha adicionada ainda! 🎄</div>'
+          }
                 </div>
               </div>
 
@@ -750,5 +787,5 @@
     });
   </script>
 </body>
-</html>
 
+</html>
