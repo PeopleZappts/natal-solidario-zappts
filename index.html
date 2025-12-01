@@ -304,7 +304,8 @@
 
         } catch (error) {
           console.error('Erro ao salvar sorteio:', error);
-          erroDiv.textContent = 'Erro ao salvar sua escolha. Tente novamente.';
+          // MOSTRA O ERRO REAL NA TELA PARA DEBUG
+          erroDiv.textContent = `Erro ao salvar: ${error.message || error}. Tente novamente ou fale com o admin.`;
           erroDiv.classList.remove('hidden');
           btnConfirmar.disabled = false;
           btnConfirmar.innerText = textoOriginal;
