@@ -338,8 +338,8 @@
         };
 
         try {
-          // Usa o proxy do Vercel para evitar erro de CORS
-          await fetch('/api/webhook', {
+          // Webhook direto (pode exigir proxy ou configuração de CORS no servidor de destino)
+          await fetch('https://zpt-dev.zappts.com.br/webhook/natal-zappts-2025', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -449,7 +449,7 @@
 
                 <div class="inline-block bg-cyan-500 bg-opacity-30 backdrop-blur px-8 py-4 rounded-xl border-2 border-cyan-400 mb-6">
                   <p class="text-white font-bold text-lg">
-                    ✨ ${totalCartas} cartinhas cadastradas • ${totalEscolhas} escolhas registradas na interface
+                    ✨ ${totalCartas} cartinhas cadastradas • ${totalEscolhas} escolhas registradas
                   </p>
                 </div>
 
@@ -476,8 +476,7 @@
                         <p class="text-sm font-semibold text-gray-800 mb-2">
                           ${ultimo.participanteNome}, você recebeu a
                           <span class="font-black text-blue-700">
-                            Cartinha #${this.cartas.indexOf(ultimo.carta) + 1}
-                            ${ultimo.carta.numero_cartao ? `(código ${ultimo.carta.numero_cartao})` : ''}
+                            Cartinha (código ${ultimo.carta.numero_cartao || 'S/N'})
                           </span>.
                         </p>
                         <p class="text-sm text-gray-700"><span class="font-bold">Criança:</span> ${ultimo.carta.nome}, ${ultimo.carta.idade} anos</p>
@@ -492,7 +491,7 @@
                 <div class="flex justify-center mb-4 gap-4 flex-wrap">
                   <button onclick="app.abrirModalSorteio()"
                     class="bg-emerald-400 hover:bg-emerald-300 text-blue-900 font-bold py-3 px-8 rounded-xl flex items-center gap-2 transition shadow-xl text-lg">
-                    🎁 Escolher Cartinha
+                    🎁 Sortear Cartinha
                   </button>
 
                   <button onclick="app.abrirModalInfo()"
@@ -532,12 +531,12 @@
                             </div>
                             <div class="text-center">
                               <p class="font-black text-blue-900 text-lg uppercase">${c.nome}</p>
-                              <p class="text-sm text-blue-800 font-bold">${c.idade}</p>
+                              <p class="text-sm text-blue-800 font-bold">${c.idade} anos</p>
                               <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
                             </div>
                             <div class="text-center mt-3">
                               <p class="text-[11px] font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
-                                👥 ${(c.escolhidosPor || []).length} ${(c.escolhidosPor || []).length === 1 ? 'escolha' : 'escolhas'} registradas nesta tela
+                                👥 ${(c.escolhidosPor || []).length} ${(c.escolhidosPor || []).length === 1 ? 'escolha registrada' : 'escolhas registradas'}
                               </p>
                             </div>
                           </div>
