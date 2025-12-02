@@ -1,5 +1,11 @@
 {
   "buildCommand": "echo 'build complete'",
   "outputDirectory": ".",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/api/webhook",
+      "destination": "https://zpt-dev.zappts.com.br/webhook/natal-zappts-2025"
+    }
+  ]
 }
