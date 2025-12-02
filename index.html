@@ -507,12 +507,12 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-12">
                   ${this.cartas.length > 0
             ? this.cartas.map((c, i) => `
-                        <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition">
-                          <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 h-64 flex flex-col justify-between">
-                            <div class="flex justify-between items-start">
+                        <div class="relative rounded-xl overflow-hidden shadow-xl hover:shadow-2xl transition bg-white">
+                          <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-300 to-emerald-400 flex flex-col justify-between h-full min-h-[350px]">
+                            <div class="flex justify-between items-start mb-2">
                               <div class="flex flex-col gap-1">
                                 <span class="inline-block bg-blue-700 text-white px-2 py-1 rounded-full text-xs font-black">
-                                  #${i + 1}${c.numero_cartao ? ` • código ${c.numero_cartao}` : ''}
+                                  ${c.numero_cartao ? `Cód. ${c.numero_cartao}` : `Cartinha #${i + 1}`}
                                 </span>
                               </div>
                                 <button onclick="event.stopPropagation(); app.editarCarta(${c.id})"
@@ -524,18 +524,18 @@
                                   ✕
                                 </button>
                             </div>
-                            <div class="text-center flex-1 flex items-center justify-center">
+                            <div class="text-center flex-1 flex items-center justify-center mb-2 w-full">
                               ${c.imagem
-                ? `<img src="${c.imagem}" class="w-20 h-20 object-cover rounded-lg cursor-pointer" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
+                ? `<img src="${c.imagem}" class="w-full h-48 object-cover rounded-lg cursor-pointer border-2 border-white shadow-sm" onclick="event.stopPropagation(); app.ampliarImagem('${c.imagem}')">`
                 : '<p class="text-5xl">😊</p>'
               }
                             </div>
                             <div class="text-center">
-                              <p class="font-black text-blue-900 text-sm">${c.nome}</p>
-                              <p class="text-xs text-blue-800 font-semibold">${c.idade} anos</p>
+                              <p class="font-black text-blue-900 text-lg uppercase">${c.nome}</p>
+                              <p class="text-sm text-blue-800 font-bold">${c.idade}</p>
                               <p class="text-xs text-blue-700 mt-1 italic font-semibold">${c.desejo}</p>
                             </div>
-                            <div class="text-center mt-1">
+                            <div class="text-center mt-3">
                               <p class="text-[11px] font-black bg-blue-700 text-white py-1 px-2 rounded-lg">
                                 👥 ${(c.escolhidosPor || []).length} ${(c.escolhidosPor || []).length === 1 ? 'escolha' : 'escolhas'} registradas nesta tela
                               </p>
@@ -588,9 +588,19 @@
       abrirModalEditarCarta() {
         const c = this.cartaEmEdicao;
         const modaisDiv = document.getElementById('modais');
+
+        const listaEmails = (c.escolhidosPor || []).map((email, i) => `
+          <div class="flex justify-between items-center bg-gray-100 p-2 rounded mb-2 border border-gray-200">
+            <span class="text-xs font-bold text-gray-700">${email}</span>
+            <button onclick="app.removerEscolhaEdicao(${i})" class="text-red-500 hover:text-red-700 font-bold text-xs uppercase">
+              Remover
+            </button>
+          </div>
+        `).join('');
+
         modaisDiv.innerHTML = `
           <div class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400">
+            <div class="bg-white rounded-xl p-8 max-w-md w-full shadow-2xl border-2 border-cyan-400 max-h-[90vh] overflow-y-auto">
               <h2 class="text-2xl font-black text-blue-700 mb-4">✏️ Editar Cartinha</h2>
               <div class="space-y-4 mb-6">
                 <input type="text" id="editNome" value="${c.nome}" placeholder="Nome"
@@ -604,6 +614,11 @@
                 
                 <div class="text-xs text-gray-500">Imagem atual: ${c.imagem ? 'Sim' : 'Não'}</div>
                 <input type="file" id="editImagem" accept="image/*" class="w-full px-4 py-2 border-2 border-cyan-300 rounded-lg">
+                
+                <div class="mt-4">
+                  <p class="text-sm font-bold text-blue-700 mb-2">Escolhida por:</p>
+                  ${listaEmails || '<p class="text-xs text-gray-400 italic">Ninguém escolheu ainda.</p>'}
+                </div>
               </div>
               <div class="flex gap-3">
                 <button onclick="document.getElementById('modais').innerHTML = ''"
@@ -618,6 +633,14 @@
             </div>
           </div>
         `;
+      }
+
+      removerEscolhaEdicao(index) {
+        if (!this.cartaEmEdicao || !this.cartaEmEdicao.escolhidosPor) return;
+        if (confirm('Tem certeza que deseja remover esta escolha? A cartinha ficará disponível novamente.')) {
+          this.cartaEmEdicao.escolhidosPor.splice(index, 1);
+          this.abrirModalEditarCarta(); // Re-renderiza o modal
+        }
       }
 
       async confirmarEdicao() {
@@ -642,12 +665,12 @@
               idade,
               numero_cartao: numero ? Number(numero) : null,
               desejo,
-              imagem: imagemUrl
+              imagem: imagemUrl,
+              escolhidos_por: this.cartaEmEdicao.escolhidosPor // Salva a lista atualizada (caso tenha removido alguém)
             })
           });
 
           // Atualiza local
-          this.cartaEmEdicao.nome = nome;
           this.cartaEmEdicao.idade = idade;
           this.cartaEmEdicao.numero_cartao = numero;
           this.cartaEmEdicao.desejo = desejo;
